@@ -3,6 +3,7 @@ import ComparisonHeader from '../components/ComparisonHeader';
 import ChangeSummary from '../components/ChangeSummary';
 import ChangeFilters from '../components/ChangeFilters';
 import ChangeCard from '../components/ChangeCard';
+import NlpSummaryPanel from '../components/NlpSummaryPanel';
 import { calculateChangeCounts } from '../utils/summary';
 import { generateChangeSummary } from '../utils/generateSummary';
 
@@ -10,6 +11,7 @@ export default function ResultsPage({ comparison, onCompareAnother }) {
   const [activeFilter, setActiveFilter] = useState('all');
 
   const changes = Array.isArray(comparison?.changes) ? comparison.changes : [];
+  const hasNlp = Boolean(comparison?.nlpAnalysis);
 
   const counts = useMemo(() => calculateChangeCounts(changes), [changes]);
   const summarySentences = useMemo(() => generateChangeSummary(changes), [changes]);
@@ -33,10 +35,17 @@ export default function ResultsPage({ comparison, onCompareAnother }) {
           engineCounts={comparison.engineSummary}
         />
 
+        {hasNlp && (
+          <NlpSummaryPanel
+            nlpAnalysis={comparison.nlpAnalysis}
+            sectionNumber="02"
+          />
+        )}
+
         <section className="changes-section" aria-labelledby="details-heading">
           <div className="section-heading details-heading">
             <div>
-              <span className="section-number">02</span>
+              <span className="section-number">{hasNlp ? '03' : '02'}</span>
               <h2 id="details-heading">Detected Changes</h2>
             </div>
             <p>Showing {visibleChanges.length} of {counts.total} changes</p>

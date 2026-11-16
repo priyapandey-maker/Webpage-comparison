@@ -1,0 +1,100 @@
+{
+    "tag": "html",
+    "text": "",
+    "attributes": {},
+    "children": [
+        {
+            "tag": "head",
+            "text": "",
+            "attributes": {},
+            "children": [
+                {
+                    "tag": "title",
+                    "text": "Demo Page",
+                    "attributes": {},
+                    "children": [],
+                    "fingerprint": {
+                        "tag": "title",
+                        "attributes": [],
+                        "children_tags": [],
+                        "child_count": 0
+                    }
+                }
+            ],
+            "fingerprint": {
+                "tag": "head",
+                "attributes": [],
+                "children_tags": [
+                    "title"
+                ],
+                "child_count": 1
+            }
+        },
+        {
+            "tag": "body",
+            "text": "",
+            "attributes": {},
+            "children": [
+                {
+                    "tag": "h1",
+                    "text": "Welcome",
+                    "attributes": {},
+                    "children": [],
+                    "fingerprint": {
+                        "tag": "h1",
+                        "attributes": [],
+                        "children_tags": [],
+                        "child_count": 0
+                    }
+                },
+                {
+                    "tag": "p",
+                    "text": "Original text.",
+                    "attributes": {},
+                    "children": [],
+                    "fingerprint": {
+                        "tag": "p",
+                        "attributes": [],
+                        "children_tags": [],
+                        "child_count": 0
+                    }
+                },
+                {
+                    "tag": "a",
+                    "text": "Old link",
+                    "attributes": {
+                        "href": "/old"
+                    },
+                    "children": [],
+                    "fingerprint": {
+                        "tag": "a",
+                        "attributes": [
+                            "href"
+                        ],
+                        "children_tags": [],
+                        "child_count": 0
+                    }
+                }
+            ],
+            "fingerprint": {
+                "tag": "body",
+                "attributes": [],
+                "children_tags": [
+                    "h1",
+                    "p",
+                    "a"
+                ],
+                "child_count": 3
+            }
+        }
+    ],
+    "fingerprint": {
+        "tag": "html",
+        "attributes": [],
+        "children_tags": [
+            "head",
+            "body"
+        ],
+        "child_count": 2
+    }
+}

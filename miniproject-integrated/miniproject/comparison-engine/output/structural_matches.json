@@ -1,0 +1,34 @@
+{
+    "matches": [
+        {
+            "version1_path": "/html",
+            "version2_path": "/html",
+            "score": 80
+        },
+        {
+            "version1_path": "/html/head[0]",
+            "version2_path": "/html/head[0]",
+            "score": 80
+        },
+        {
+            "version1_path": "/html/head[0]/title[0]",
+            "version2_path": "/html/head[0]/title[0]",
+            "score": 93
+        },
+        {
+            "version1_path": "/html/body[1]/h1[0]",
+            "version2_path": "/html/body[1]/h1[0]",
+            "score": 85
+        },
+        {
+            "version1_path": "/html/body[1]/p[1]",
+            "version2_path": "/html/body[1]/p[1]",
+            "score": 87
+        },
+        {
+            "version1_path": "/html/body[1]/a[2]",
+            "version2_path": "/html/body[1]/a[2]",
+            "score": 87
+        }
+    ]
+}

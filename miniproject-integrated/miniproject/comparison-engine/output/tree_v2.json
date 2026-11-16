@@ -1,0 +1,113 @@
+{
+    "tag": "html",
+    "text": "",
+    "attributes": {},
+    "children": [
+        {
+            "tag": "head",
+            "text": "",
+            "attributes": {},
+            "children": [
+                {
+                    "tag": "title",
+                    "text": "Updated Demo Page",
+                    "attributes": {},
+                    "children": [],
+                    "fingerprint": {
+                        "tag": "title",
+                        "attributes": [],
+                        "children_tags": [],
+                        "child_count": 0
+                    }
+                }
+            ],
+            "fingerprint": {
+                "tag": "head",
+                "attributes": [],
+                "children_tags": [
+                    "title"
+                ],
+                "child_count": 1
+            }
+        },
+        {
+            "tag": "body",
+            "text": "",
+            "attributes": {},
+            "children": [
+                {
+                    "tag": "h1",
+                    "text": "Welcome to Version 2",
+                    "attributes": {},
+                    "children": [],
+                    "fingerprint": {
+                        "tag": "h1",
+                        "attributes": [],
+                        "children_tags": [],
+                        "child_count": 0
+                    }
+                },
+                {
+                    "tag": "p",
+                    "text": "Updated text.",
+                    "attributes": {},
+                    "children": [],
+                    "fingerprint": {
+                        "tag": "p",
+                        "attributes": [],
+                        "children_tags": [],
+                        "child_count": 0
+                    }
+                },
+                {
+                    "tag": "a",
+                    "text": "New link",
+                    "attributes": {
+                        "href": "/new"
+                    },
+                    "children": [],
+                    "fingerprint": {
+                        "tag": "a",
+                        "attributes": [
+                            "href"
+                        ],
+                        "children_tags": [],
+                        "child_count": 0
+                    }
+                },
+                {
+                    "tag": "button",
+                    "text": "Start",
+                    "attributes": {},
+                    "children": [],
+                    "fingerprint": {
+                        "tag": "button",
+                        "attributes": [],
+                        "children_tags": [],
+                        "child_count": 0
+                    }
+                }
+            ],
+            "fingerprint": {
+                "tag": "body",
+                "attributes": [],
+                "children_tags": [
+                    "h1",
+                    "p",
+                    "a",
+                    "button"
+                ],
+                "child_count": 4
+            }
+        }
+    ],
+    "fingerprint": {
+        "tag": "html",
+        "attributes": [],
+        "children_tags": [
+            "head",
+            "body"
+        ],
+        "child_count": 2
+    }
+}

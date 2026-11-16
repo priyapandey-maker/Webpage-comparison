@@ -1,0 +1,126 @@
+{
+    "inputs": {
+        "version1": "C:\\Sukruti\\Sukruti-UMIT\\Mini project\\member2_complete_project (1)\\member2\\examples\\version1.html",
+        "version2": "C:\\Sukruti\\Sukruti-UMIT\\Mini project\\member2_complete_project (1)\\member2\\examples\\version2.html"
+    },
+    "node_counts": {
+        "version1": 5,
+        "version2": 5
+    },
+    "structural_matches": {
+        "matches": [
+            {
+                "version1_path": "/html",
+                "version2_path": "/html",
+                "score": 80
+            },
+            {
+                "version1_path": "/html/head[0]",
+                "version2_path": "/html/head[0]",
+                "score": 80
+            },
+            {
+                "version1_path": "/html/head[0]/title[0]",
+                "version2_path": "/html/head[0]/title[0]",
+                "score": 93
+            },
+            {
+                "version1_path": "/html/body[1]/h1[0]",
+                "version2_path": "/html/body[1]/h1[0]",
+                "score": 85
+            },
+            {
+                "version1_path": "/html/body[1]/p[1]",
+                "version2_path": "/html/body[1]/p[1]",
+                "score": 87
+            },
+            {
+                "version1_path": "/html/body[1]/a[2]",
+                "version2_path": "/html/body[1]/a[2]",
+                "score": 87
+            }
+        ]
+    },
+    "changes": {
+        "added": [
+            {
+                "path": "/html/body[0]/button[0]",
+                "tag": "button",
+                "text": "Start"
+            }
+        ],
+        "removed": [],
+        "modified": [
+            {
+                "path_v1": "/html/body[0]/a[0]",
+                "path_v2": "/html/body[0]/a[0]",
+                "tag": "a",
+                "old_text": "Old link",
+                "new_text": "New link",
+                "old_attributes": {
+                    "href": "/old"
+                },
+                "new_attributes": {
+                    "href": "/new"
+                },
+                "similarity": 65
+            },
+            {
+                "path_v1": "/html/body[0]/h1[0]",
+                "path_v2": "/html/body[0]/h1[0]",
+                "tag": "h1",
+                "old_text": "Welcome",
+                "new_text": "Welcome to Version 2",
+                "old_attributes": {},
+                "new_attributes": {},
+                "similarity": 59
+            },
+            {
+                "path_v1": "/html/body[0]/p[0]",
+                "path_v2": "/html/body[0]/p[0]",
+                "tag": "p",
+                "old_text": "Original text.",
+                "new_text": "Updated text.",
+                "old_attributes": {},
+                "new_attributes": {},
+                "similarity": 59
+            },
+            {
+                "path_v1": "/html/head[0]/title[0]",
+                "path_v2": "/html/head[0]/title[0]",
+                "tag": "title",
+                "old_text": "Demo Page",
+                "new_text": "Updated Demo Page",
+                "old_attributes": {},
+                "new_attributes": {},
+                "similarity": 74
+            }
+        ],
+        "unchanged": [
+            {
+                "path_v1": "/html",
+                "path_v2": "/html",
+                "tag": "html",
+                "text": ""
+            },
+            {
+                "path_v1": "/html/body[0]",
+                "path_v2": "/html/body[0]",
+                "tag": "body",
+                "text": ""
+            },
+            {
+                "path_v1": "/html/head[0]",
+                "path_v2": "/html/head[0]",
+                "tag": "head",
+                "text": ""
+            }
+        ]
+    },
+    "summary": {
+        "added": 1,
+        "removed": 0,
+        "modified": 4,
+        "unchanged": 3
+    }
+}

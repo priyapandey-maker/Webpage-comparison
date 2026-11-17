@@ -7,10 +7,11 @@ and named entity recognition (NER) across detected webpage changes.
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter
 from typing import Any, Sequence
 
-from .keyword_extraction import compare_keywords, extract_keywords
+from .keyword_extraction import compare_keywords, extract_keywords, is_technical_noise
 from .model_loader import (
     DEFAULT_SENTENCE_MODEL_NAME,
     DEFAULT_SPACY_MODEL_NAME,
@@ -21,6 +22,9 @@ from .preprocessing import clean_html_text, is_empty_or_whitespace
 from .semantic_similarity import compute_semantic_similarity
 
 logger = logging.getLogger(__name__)
+
+
+_HREF_LINK_PATTERN = re.compile(r"^(.*?)\s*\(href:\s*(.*?)\)$", re.IGNORECASE)
 
 
 def generate_change_explanation(
@@ -35,6 +39,58 @@ def generate_change_explanation(
     """Generate a simple, clear human-readable explanation of the text change."""
     if similarity_category == "identical":
         return "The text content is semantically identical."
+
+    # 1. Specialized explanation for link label and destination changes
+    orig_clean = (original_text or "").strip()
+    upd_clean = (updated_text or "").strip()
+    m_old = _HREF_LINK_PATTERN.match(orig_clean)
+    m_new = _HREF_LINK_PATTERN.match(upd_clean)
+    if m_old and m_new:
+        old_label = m_old.group(1).strip()
+        old_href = m_old.group(2).strip()
+        new_label = m_new.group(1).strip()
+        new_href = m_new.group(2).strip()
+        if old_label != new_label and old_href != new_href:
+            return (
+                f"Link label changed from '{old_label}' to '{new_label}', "
+                f"and its destination changed from '{old_href}' to '{new_href}'."
+            )
+        if old_label != new_label:
+            return f"Link label changed from '{old_label}' to '{new_label}' (destination remains '{old_href}')."
+        if old_href != new_href:
+            return f"Link destination changed from '{old_href}' to '{new_href}' (label remains '{old_label}')."
+
+    # 2. Specialized explanation for standalone URL / link destination changes
+    is_orig_url = (
+        orig_clean.startswith(("/", "http://", "https://"))
+        or orig_clean.endswith("/")
+        or "://" in orig_clean
+    )
+    is_upd_url = (
+        upd_clean.startswith(("/", "http://", "https://"))
+        or upd_clean.endswith("/")
+        or "://" in upd_clean
+    )
+    if (is_orig_url or is_upd_url) and orig_clean != upd_clean:
+        if orig_clean.startswith("http://") and upd_clean.startswith("https://"):
+            return f"Link destination changed from '{orig_clean}' to '{upd_clean}' (upgraded to secure HTTPS)."
+        if is_orig_url and is_upd_url:
+            return f"Link destination changed from '{orig_clean}' to '{upd_clean}'."
+
+    # 3. Specialized explanation for technical asset / resource references (stylesheets, icons, scripts)
+    orig_lower = orig_clean.lower()
+    upd_lower = upd_clean.lower()
+    is_tech_asset = (
+        ("rel:" in orig_lower and ("stylesheet" in orig_lower or "icon" in orig_lower or "shortcut" in orig_lower))
+        or ("rel:" in upd_lower and ("stylesheet" in upd_lower or "icon" in upd_lower or "shortcut" in upd_lower))
+        or (any(ext in orig_lower for ext in (".css", ".ico", ".js")) and any(ext in upd_lower for ext in (".css", ".ico", ".js")))
+    )
+    if is_tech_asset:
+        if "stylesheet" in orig_lower or "stylesheet" in upd_lower:
+            return "Technical asset reference updated (stylesheet)."
+        if "icon" in orig_lower or "icon" in upd_lower or "shortcut" in orig_lower or "shortcut" in upd_lower:
+            return "Technical asset reference updated (shortcut icon)."
+        return "Technical asset or resource reference was updated."
 
     parts: list[str] = []
 
@@ -71,11 +127,13 @@ def generate_change_explanation(
     elif removed_money:
         parts.append(f"Monetary value reference removed: '{', '.join(removed_money)}'.")
 
-    # Important keyword additions and removals
-    if added_keywords:
-        parts.append(f"Added keywords: {', '.join(added_keywords[:4])}.")
-    if removed_keywords:
-        parts.append(f"Removed keywords: {', '.join(removed_keywords[:4])}.")
+    # Important keyword additions and removals (filtered of technical noise)
+    filtered_added = [kw for kw in added_keywords if not is_technical_noise(kw)]
+    filtered_removed = [kw for kw in removed_keywords if not is_technical_noise(kw)]
+    if filtered_added:
+        parts.append(f"Added keywords: {', '.join(filtered_added[:4])}.")
+    if filtered_removed:
+        parts.append(f"Removed keywords: {', '.join(filtered_removed[:4])}.")
 
     return " ".join(parts)
 
@@ -279,9 +337,13 @@ def run_nlp_pipeline(
                 all_removed_keywords.extend(rem_nlp["keywords"])
                 all_removed_entities.extend(rem_nlp["entities"])
 
-    # Aggregate top keywords and entities by frequency
-    top_added_kw = [kw for kw, _ in Counter(k.lower() for k in all_added_keywords).most_common(10)]
-    top_removed_kw = [kw for kw, _ in Counter(k.lower() for k in all_removed_keywords).most_common(10)]
+    # Aggregate top keywords and entities by frequency, filtering technical noise
+    top_added_kw = [
+        kw for kw, _ in Counter(k.strip() for k in all_added_keywords if not is_technical_noise(k)).most_common(10)
+    ]
+    top_removed_kw = [
+        kw for kw, _ in Counter(k.strip() for k in all_removed_keywords if not is_technical_noise(k)).most_common(10)
+    ]
 
     avg_sim: float | None = (
         round(sum(similarity_scores) / len(similarity_scores), 4)
@@ -369,6 +431,43 @@ def attach_nlp_analysis(
             spacy_model=spacy_model,
         )
         comparison_result["nlpAnalysis"] = nlp_payload
+
+        # Associate explanations and NLP metadata directly with individual changes
+        mod_by_id = {
+            m.get("change_id"): m
+            for m in nlp_payload.get("modifications", [])
+            if m.get("change_id") is not None
+        }
+        add_by_id = {
+            a.get("change_id"): a
+            for a in nlp_payload.get("additions", [])
+            if a.get("change_id") is not None
+        }
+        rem_by_id = {
+            r.get("change_id"): r
+            for r in nlp_payload.get("removals", [])
+            if r.get("change_id") is not None
+        }
+
+        for change in changes:
+            cid = change.get("id")
+            if cid in mod_by_id:
+                m = mod_by_id[cid]
+                if m.get("explanation"):
+                    change["explanation"] = m["explanation"]
+                if m.get("similarity_score") is not None:
+                    change["semanticSimilarity"] = m["similarity_score"]
+                if m.get("similarity_category"):
+                    change["semanticCategory"] = m["similarity_category"]
+            elif cid in add_by_id:
+                a = add_by_id[cid]
+                if a.get("keywords"):
+                    change["keywords"] = a["keywords"]
+            elif cid in rem_by_id:
+                r = rem_by_id[cid]
+                if r.get("keywords"):
+                    change["keywords"] = r["keywords"]
+
     except Exception as exc:
         logger.error("NLP analysis failed safely: %s", exc, exc_info=True)
         comparison_result["nlpAnalysis"] = {

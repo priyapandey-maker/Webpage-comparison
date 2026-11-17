@@ -25,12 +25,7 @@ from structural_compare import create_structural_matches
 from structural_match import structural_match
 from result_adapter import adapt_engine_result
 
-from live_compare import (
-    CompareURLsRequest,
-    HTMLValidationError,
-    LiveFetchError,
-    fetch_live_url_pair,
-)
+from html_validator import HTMLValidationError
 from nlp.pipeline import attach_nlp_analysis
 from security.ssrf_validator import (
     BlockedIPError,
@@ -77,13 +72,6 @@ app.add_middleware(
 # The lock prevents two local requests from changing that directory at once.
 ENGINE_LOCK = Lock()
 HTML_EXTENSIONS = {".html", ".htm"}
-
-
-class CompareURLsPayload(BaseModel):
-    """Input payload schema for the live URL comparison endpoint."""
-
-    url1: str
-    url2: str
 
 
 class WaybackComparePayload(BaseModel):
@@ -157,13 +145,19 @@ async def compare(
                 version2_path,
                 temp_path,
             )
-            return adapt_engine_result(
+            adapted = adapt_engine_result(
                 raw_changes,
                 tree_v1,
                 tree_v2,
                 version1.filename or "Version 1",
                 version2.filename or "Version 2",
             )
+            try:
+                enriched = attach_nlp_analysis(adapted)
+                return enriched
+            except Exception as err:
+                logger.warning("NLP enrichment failed safely on file compare: %s", err)
+                return adapted
     except HTTPException:
         raise
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
@@ -173,89 +167,6 @@ async def compare(
     finally:
         await version1.close()
         await version2.close()
-
-
-@app.post("/api/compare-urls")
-async def compare_urls(payload: CompareURLsPayload):
-    """Compare two live webpage URLs using the SSRF-hardened fetcher, structural engine, and NLP pipeline."""
-    # 1. Fast pre-validation of requested URLs
-    try:
-        req = CompareURLsRequest(url1=payload.url1, url2=payload.url2)
-    except ValidationError as err:
-        errors = err.errors()
-        msg = errors[0].get("msg", str(err)) if errors else str(err)
-        if msg.startswith("Value error, "):
-            msg = msg[len("Value error, "):]
-        raise HTTPException(status_code=400, detail=f"Invalid URL: {msg}")
-
-    # 2. Concurrently fetch and validate both target URLs
-    try:
-        res1, res2 = await fetch_live_url_pair(req.url1, req.url2)
-    except HTMLValidationError as err:
-        err_msg = str(err)
-        if "content-type" in err_msg.lower() or "unsupported" in err_msg.lower():
-            raise HTTPException(status_code=415, detail=err_msg)
-        raise HTTPException(status_code=422, detail=err_msg)
-    except LiveFetchError as err:
-        cause = err.cause
-        if isinstance(cause, (BlockedIPError, InvalidURLError, RedirectSecurityError)):
-            raise HTTPException(status_code=400, detail=f"Security violation: {cause}")
-        elif isinstance(cause, ResourceLimitError):
-            cause_str = str(cause).lower()
-            if "deadline" in cause_str or "timeout" in cause_str:
-                raise HTTPException(status_code=504, detail=f"Gateway timeout: {cause}")
-            raise HTTPException(status_code=413, detail=f"Payload too large: {cause}")
-        elif isinstance(cause, (DNSResolutionError, TLSVerificationError, PeerVerificationError)):
-            raise HTTPException(status_code=502, detail=f"Upstream connection failed: {cause}")
-        elif err.status_code is not None:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Upstream server returned HTTP {err.status_code} for {err.failed_url or 'target URL'}.",
-            )
-        else:
-            raise HTTPException(status_code=502, detail=str(err))
-    except SSRFSecurityError as err:
-        raise HTTPException(status_code=400, detail=f"Security violation: {err}")
-
-    # 3. Write fetched bytes to isolated temporary files and execute comparison engine
-    try:
-        with TemporaryDirectory(prefix="webpage-compare-urls-") as temp_directory:
-            temp_path = Path(temp_directory)
-            version1_path = temp_path / "fetched-version1.html"
-            version2_path = temp_path / "fetched-version2.html"
-
-            # Preserve exact response bytes
-            version1_path.write_bytes(res1.content)
-            version2_path.write_bytes(res2.content)
-
-            # Offload synchronous engine execution to worker thread to keep async event loop responsive
-            raw_changes, tree_v1, tree_v2 = await anyio.to_thread.run_sync(
-                _run_existing_engine,
-                version1_path,
-                version2_path,
-                temp_path,
-            )
-
-            # Adapt engine output to frontend presentation schema using resolved URLs
-            adapted = adapt_engine_result(
-                raw_changes,
-                tree_v1,
-                tree_v2,
-                res1.url,
-                res2.url,
-            )
-
-            # Enrich with NLP semantic analysis layer
-            enriched = attach_nlp_analysis(adapted)
-            return enriched
-    except HTTPException:
-        raise
-    except ValueError as err:
-        raise HTTPException(status_code=422, detail=f"HTML parsing failed: {err}")
-    except (UnicodeDecodeError, json.JSONDecodeError) as err:
-        raise HTTPException(status_code=422, detail=f"Document decode error: {err}")
-    except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Comparison failed: {err}")
 
 
 @app.get("/api/wayback/snapshots", response_model=WaybackSnapshotsResponse)
@@ -431,6 +342,37 @@ async def compare_wayback_snapshots(payload: WaybackComparePayload):
                 label1,
                 label2,
             )
+
+            # Enrich with verified historical snapshot metadata & replay URLs for visual inspection
+            replay1 = f"https://web.archive.org/web/{snap1.timestamp}/{snap1.original_url}"
+            raw_replay1 = f"https://web.archive.org/web/{snap1.timestamp}id_/{snap1.original_url}"
+            replay2 = f"https://web.archive.org/web/{snap2.timestamp}/{snap2.original_url}"
+            raw_replay2 = f"https://web.archive.org/web/{snap2.timestamp}id_/{snap2.original_url}"
+
+            wayback_ctx = {
+                "targetUrl": req.url,
+                "version1": {
+                    "label": label1,
+                    "timestamp": snap1.timestamp,
+                    "datetime": snap1.datetime,
+                    "displayDate": snap1.display_date,
+                    "originalUrl": snap1.original_url,
+                    "replayUrl": replay1,
+                    "rawReplayUrl": raw_replay1,
+                },
+                "version2": {
+                    "label": label2,
+                    "timestamp": snap2.timestamp,
+                    "datetime": snap2.datetime,
+                    "displayDate": snap2.display_date,
+                    "originalUrl": snap2.original_url,
+                    "replayUrl": replay2,
+                    "rawReplayUrl": raw_replay2,
+                },
+            }
+            adapted["waybackContext"] = wayback_ctx
+            adapted["version1"].update(wayback_ctx["version1"])
+            adapted["version2"].update(wayback_ctx["version2"])
 
             # Enrich with NLP semantic analysis layer
             try:

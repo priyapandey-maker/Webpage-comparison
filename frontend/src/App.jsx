@@ -1,18 +1,13 @@
 import { useState } from 'react';
 import ResultsPage from './pages/ResultsPage';
 import UploadPage from './pages/UploadPage';
-import { compareFiles, compareUrls, compareWaybackSnapshots } from './services/comparisonService';
+import { compareFiles, compareWaybackSnapshots } from './services/comparisonService';
 
 export default function App() {
   const [comparison, setComparison] = useState(null);
 
   async function handleCompareFiles(version1File, version2File) {
     const result = await compareFiles(version1File, version2File);
-    setComparison(result);
-  }
-
-  async function handleCompareUrls(url1, url2) {
-    const result = await compareUrls(url1, url2);
     setComparison(result);
   }
 
@@ -30,7 +25,6 @@ export default function App() {
   ) : (
     <UploadPage
       onCompareFiles={handleCompareFiles}
-      onCompareUrls={handleCompareUrls}
       onCompareWayback={handleCompareWayback}
       onCompare={handleCompareFiles}
     />

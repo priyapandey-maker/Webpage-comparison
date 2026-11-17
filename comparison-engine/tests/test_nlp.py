@@ -40,6 +40,7 @@ from src.nlp.keyword_extraction import (
     compare_keywords,
     extract_keywords,
     extract_keywords_fallback,
+    is_technical_noise,
 )
 from src.nlp.model_loader import ModelManager, get_model_manager
 from src.nlp.ner import (
@@ -310,6 +311,28 @@ class TestKeywordExtraction:
         assert extract_keywords("") == []
         assert extract_keywords(None) == []
         assert extract_keywords("   ") == []
+
+    def test_is_technical_noise_filtering(self):
+        # Noise items that must be filtered out
+        assert is_technical_noise("/html/body[0]/div[0]/footer[0]/div[0]/div[0]/p[1]")
+        assert is_technical_noise("/static")
+        assert is_technical_noise("/numbers")
+        assert is_technical_noise("iana_website.css")
+        assert is_technical_noise("bookmark_icon.ico")
+        assert is_technical_noise("68dd615b61e5")
+        assert is_technical_noise("href: /_css/2022/iana_website.css, rel: stylesheet")
+        assert is_technical_noise("https://example.com/asset.png")
+        assert is_technical_noise("http")
+        assert is_technical_noise("https")
+        assert is_technical_noise("footer")
+        assert is_technical_noise("paragraph")
+
+        # Legitimate content terms that must be preserved
+        assert not is_technical_noise("Number Registries")
+        assert not is_technical_noise("RIR Allocation Data")
+        assert not is_technical_noise("Abuse Information")
+        assert not is_technical_noise("Admissions")
+        assert not is_technical_noise("University")
 
 
 # ============================================================================

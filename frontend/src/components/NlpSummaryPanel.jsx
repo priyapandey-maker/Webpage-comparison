@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isTechnicalNoise } from '../utils/generateSummary';
 
 const CATEGORY_LABELS = {
   identical: 'Identical (≥99.9%)',
@@ -34,12 +35,16 @@ function CategoryBadge({ category }) {
 }
 
 function KeywordTags({ keywords, tone, prefix = '' }) {
-  if (!Array.isArray(keywords) || keywords.length === 0) {
+  const cleanKeywords = Array.isArray(keywords)
+    ? keywords.filter((kw) => !isTechnicalNoise(kw))
+    : [];
+
+  if (cleanKeywords.length === 0) {
     return <span className="nlp-empty-inline">None identified</span>;
   }
   return (
     <div className="nlp-keyword-tag-list">
-      {keywords.map((kw, i) => (
+      {cleanKeywords.map((kw, i) => (
         <span key={`${kw}-${i}`} className={`nlp-keyword-tag nlp-kw-${tone}`}>
           {prefix}{kw}
         </span>
@@ -99,8 +104,12 @@ export default function NlpSummaryPanel({ nlpAnalysis, sectionNumber = '02' }) {
   const hasAvgSimilarity = avgSimilarity != null && typeof avgSimilarity === 'number';
   const distribution = overall.similarity_distribution || {};
 
-  const topAddedKeywords = Array.isArray(overall.top_added_keywords) ? overall.top_added_keywords : [];
-  const topRemovedKeywords = Array.isArray(overall.top_removed_keywords) ? overall.top_removed_keywords : [];
+  const topAddedKeywords = Array.isArray(overall.top_added_keywords)
+    ? overall.top_added_keywords.filter((kw) => !isTechnicalNoise(kw))
+    : [];
+  const topRemovedKeywords = Array.isArray(overall.top_removed_keywords)
+    ? overall.top_removed_keywords.filter((kw) => !isTechnicalNoise(kw))
+    : [];
 
   const totalModifications = overall.total_modifications_analyzed ?? modifications.length;
   const totalAdditions = overall.total_additions_analyzed ?? additions.length;

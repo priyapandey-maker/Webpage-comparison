@@ -25,7 +25,7 @@ This document provides the authoritative, in-depth technical specification of th
    - [Asynchronous DNS Pinning via AnyIO Backend (`pinned_transport.py`)](#asynchronous-dns-pinning-via-anyio-backend-pinned_transportpy)
    - [Fail-Closed Socket Verification](#fail-closed-socket-verification)
    - [Safe Manual Redirect Loop & RFC 9110 Rewriting (`redirect_handler.py`)](#safe-manual-redirect-loop--rfc-9110-rewriting-redirect_handlerpy)
-   - [HTML Content Invariants & Sniffing Fallback (`live_compare.py`)](#html-content-invariants--sniffing-fallback-live_comparepy)
+   - [HTML Content Invariants & Sniffing Fallback (`html_validator.py`)](#html-content-invariants--sniffing-fallback-html_validatorpy)
 8. [Wayback Machine Historical Integration (`wayback_client.py`)](#8-wayback-machine-historical-integration-wayback_clientpy)
    - [Monthly CDX Snapshot Discovery & Truncation Detection](#monthly-cdx-snapshot-discovery--truncation-detection)
    - [Point Snapshot Verification](#point-snapshot-verification)
@@ -81,7 +81,7 @@ Furthermore, allowing users to supply arbitrary URLs introduces severe cybersecu
 ```mermaid
 graph TD
     subgraph Frontend["React Frontend (frontend/src)"]
-        UI_UP["UploadPage.jsx (mode: files | urls | wayback)"]
+        UI_UP["UploadPage.jsx (mode: files | wayback)"]
         UI_RES["ResultsPage.jsx (category filter)"]
         UI_NLP["NlpSummaryPanel.jsx (accordion & metrics)"]
         UI_API["services/comparisonService.js (AbortController)"]
@@ -103,7 +103,7 @@ graph TD
         SEC["security/ssrf_validator.py (IP Blacklists)"]
         PIN["security/pinned_transport.py (PinnedAsyncNetworkBackend)"]
         RED["security/redirect_handler.py (Safe Redirect Loop)"]
-        LIVE["live_compare.py (HTML Invariant Sniffer)"]
+        VAL["html_validator.py (HTML Response Validator)"]
         WAY["wayback_client.py (CDX & Replay Service)"]
     end
 
@@ -120,15 +120,11 @@ graph TD
     UI_RES --> UI_NLP
     UI_API --> API
     API --> DET
-    API --> LIVE
     API --> WAY
-    LIVE --> SEC
-    LIVE --> RED
-    RED --> PIN
+    WAY --> SEC
     WAY --> RED
     WAY --> PIN
-    LIVE --> DET
-    LIVE --> PIPE
+    WAY --> VAL
     WAY --> DET
     WAY --> PIPE
     DET --> TREE
@@ -334,7 +330,7 @@ Where $T_1$ and $T_2$ are whitespace-delimited, lowercased token sets. The resul
 
 ### URL Validation & Invariant Enforcement (`ssrf_validator.py`)
 
-Target URLs submitted to `/api/compare-urls` or `/api/wayback/*` are subjected to strict pre-validation:
+Target URLs submitted to `/api/wayback/*` are subjected to strict pre-validation:
 
 1. **Protocol Restrictions**: Only `http` and `https` schemes are permitted.
 2. **Credentials Rejection**: Prohibits user-information syntax (e.g., `http://user:pass@host`).
@@ -389,11 +385,11 @@ Automatic client redirects are disabled (`follow_redirects=False`). Manual redir
 
 ---
 
-### HTML Content Invariants & Sniffing Fallback (`live_compare.py`)
+### HTML Content Invariants & Sniffing Fallback (`html_validator.py`)
 
-Before fetched content is passed to the comparison engine, `validate_html_response` enforces:
-1. Status code must be `200 OK` (non-200 raises `LiveFetchError`).
-2. Body must not be empty.
+The module `html_validator.py` provides centralized validation for all incoming HTML payloads (with backward-compatible re-exports maintained in `live_compare.py`). Before fetched content is passed to the comparison engine, `validate_html_response` enforces:
+1. Status code must be `200 OK` (non-200 raises `HTMLValidationError` / `LiveFetchError`).
+2. Body must not be empty or whitespace-only.
 3. Media type validation:
    - Explicitly rejects `application/json`, `application/pdf`, `application/xml`, `text/xml`, `image/*`, `audio/*`, `video/*`, `font/*`.
    - Standard HTML: `text/html`, `application/xhtml+xml`.
@@ -456,7 +452,7 @@ If the Wayback server redirects to a nearest-capture timestamp rather than the e
 
 ### Error Hierarchy & HTTP Status Code Mapping
 
-Exceptions in `wayback_client.py` and `live_compare.py` map deterministically to FastAPI HTTP status codes:
+Exceptions in `wayback_client.py` and `html_validator.py` map deterministically to FastAPI HTTP status codes:
 
 | Backend Exception | HTTP Status Code | Description / User Error Message |
 | :--- | :---: | :--- |
@@ -481,18 +477,7 @@ Compares two uploaded multipart form-data HTML files.
 - **Request**: `version1: UploadFile`, `version2: UploadFile` (must have `.html` or `.htm` extension).
 - **Response**: Adapted JSON result payload (`version1`, `version2`, `changes`, `presentationSummary`, `engineSummary`).
 
-### 2. `POST /api/compare-urls`
-Concurrently fetches two live URLs and returns structural + NLP comparison.
-- **Request Body**:
-  ```json
-  {
-    "url1": "https://example.com",
-    "url2": "https://www.iana.org/domains/reserved"
-  }
-  ```
-- **Response**: Adapted JSON payload enriched with `nlpAnalysis` object.
-
-### 3. `GET /api/wayback/snapshots`
+### 2. `GET /api/wayback/snapshots`
 Discovers historical monthly captures from the CDX API.
 - **Query Parameters**:
   - `url` (string, required): Webpage target URL.
@@ -518,8 +503,8 @@ Discovers historical monthly captures from the CDX API.
   }
   ```
 
-### 4. `POST /api/wayback/compare`
-Fetches and compares two historical captures.
+### 3. `POST /api/wayback/compare`
+Fetches and compares two historical captures of the same webpage.
 - **Request Body**:
   ```json
   {
@@ -529,6 +514,13 @@ Fetches and compares two historical captures.
   }
   ```
 - **Response**: Adapted JSON payload enriched with `nlpAnalysis`.
+
+### 4. `GET /api/health`
+Health check and readiness endpoint.
+- **Response**: `{"status": "ok", "nlp_loaded": true}`
+
+> [!NOTE]
+> **Retired Endpoint**: The prior `POST /api/compare-urls` endpoint was retired in Milestone 1 to restrict the application strictly to comparing versions of the *same* webpage. Calls to `/api/compare-urls` return `HTTP 404 Not Found`.
 
 ### CORS Configuration:
 ```python
@@ -548,7 +540,7 @@ app.add_middleware(
 
 The frontend is a single-page React application structured as follows:
 
-- **State Isolation**: Mode switching between `'files' | 'urls' | 'wayback'` maintains strictly separated input state.
+- **State Isolation**: Mode switching between `'files'` and `'wayback'` maintains strictly separated input state.
 - **Discovery Invalidation (`UploadPage.jsx`)**: Modifying `waybackUrl`, `fromYear`, or `toYear` calls `invalidateWaybackDiscovery()`. This increments a sequence ref (`discoverySeqRef`), aborts active requests via `discoveryAbortControllerRef`, and resets discovered snapshots and dropdown selections.
 - **Results View (`ResultsPage.jsx`)**:
   - Section 01: `ChangeSummary.jsx` displays overview counts and narrative summary.
@@ -560,7 +552,7 @@ The frontend is a single-page React application structured as follows:
 
 ## 11. Verification Evidence & Automated Test Matrix
 
-The complete test suite contains **291 passing automated tests** in `comparison-engine/tests`:
+The complete test suite contains **272 passing automated tests** in `comparison-engine/tests`:
 
 ```bash
 cd comparison-engine
@@ -568,17 +560,17 @@ pytest tests/ -v
 ```
 
 ```text
-======================= 291 passed in 19.31s =======================
+======================= 272 passed in 44.34s =======================
 ```
 
 | Test File | Test Count | Verified Technical Behaviors |
 | :--- | :---: | :--- |
 | `test_html_tree.py` | 5 | DOM tree construction, whitespace normalization, script/style/svg tag pruning. |
 | `test_structural_compare.py` | 5 | Bipartite tree alignment, weighted score formulas, modification thresholds. |
-| `test_security.py` / `test_url_validator.py` | 56 | URL syntax parsing, IPv4/IPv6 literals, private/loopback/cloud metadata IP blocking. |
+| `test_security.py` / `test_url_validator.py` | 50 | URL syntax parsing, IPv4/IPv6 literals, private/loopback/cloud metadata IP blocking. |
 | `test_pinned_transport.py` | 82 | AnyIO backend DNS pinning, socket peer verification, redirect hop limits, deadline enforcement. |
 | `test_nlp.py` | 47 | MiniLM embedding vectors, cosine similarity calculation, tier categorization, NER regex fallback, keywords. |
-| `test_live_compare.py` | 24 | Concurrent web fetching, HTML content-type validation, 2048-byte sniffing fallback, error bubbling. |
+| `test_live_compare.py` | 11 | HTML content-type validation, status checking, 2048-byte sniffing fallback, 404 retirement verification. |
 | `test_wayback.py` | 48 | CDX monthly collapsing (`timestamp:6`), snapshot point verification, raw replay fetching (`id_`). |
 | `test_api_wayback.py` | 24 | FastAPI route contracts, parameter validation, HTTP status code error mapping. |
 
@@ -587,7 +579,8 @@ pytest tests/ -v
 ## 12. Project Scope & Operational Boundaries
 
 ### Implemented in the Current Project
-- **Three Comparison Modes**: HTML file upload (`files`), live URL comparison (`urls`), and historical Wayback comparison (`wayback`).
+- **Two Comparison Modes**: HTML file upload (`files`) and historical Wayback comparison (`wayback`).
+- **Same-Webpage Focus**: Strictly scoped to comparing different versions of the *same* original webpage (via local files or Wayback historical captures).
 - **DOM / Structural Change Detection**: DOM tree building, tag pruning, and bipartite matching with weighted similarity scoring.
 - **Categorized Change Reporting**: Explicit classification of additions, removals, and modifications across semantic elements (`Heading`, `Paragraph`, `Link`, `Button`, `Page title`).
 - **Granular NLP Analysis of Modified Text**: Sentence Transformers (`all-MiniLM-L6-v2`) computing cosine similarity across matched modified text items, with deterministic token Jaccard fallback.
@@ -600,8 +593,10 @@ pytest tests/ -v
 ### Outside Current Scope / Operational Limitations
 To ensure academic honesty, the following capabilities are explicitly outside the current implementation scope:
 - **No Client-Side JavaScript Execution**: The engine does not execute JavaScript. Single-Page Applications (SPAs) that require client-side execution without Server-Side Rendering (SSR) expose only initial skeleton HTML.
-- **No Headless Browser Automation**: The application uses direct HTTP streaming clients; it does not drive a browser instance (such as Puppeteer, Playwright, or Selenium) for live comparison.
-- **No Visual / Pixel Screenshot Diffing**: The tool tracks content and DOM hierarchy. It does not measure rendered pixel differences such as CSS animations, font smoothing, or layout positioning that do not alter DOM attributes.
+- **No Headless Browser Automation**: The application uses direct HTTP streaming clients; it does not drive a browser instance (such as Puppeteer, Playwright, or Selenium) for snapshot retrieval.
+- **Visual Screenshot Previews (Milestone 2)**: Full visual side-by-side screenshot rendering is scheduled for Milestone 2 (current release provides structural DOM diffs, attribute changes, and textual diffs).
+- **Plain-English Explanations (Milestone 3)**: High-level natural language revision narratives are planned for Milestone 3 (current NLP provides semantic similarity scores, entity extraction, and keyword comparison).
+- **No Two-URL Arbitrary Comparison**: The platform is strictly scoped to comparing versions of the *same* original webpage; comparing two arbitrary unrelated URLs is intentionally excluded.
 - **No Recursive Domain Crawling**: The tool compares specific individual documents or URLs; it does not crawl an entire website domain recursively.
 - **No Multi-Page Automated Crawling**: It operates on single-page pairs, not automated directory trees.
 - **No Authentication or Cookie Sessions**: It does not support login-gated pages, paywalled content, or cookie-based sessions.
@@ -613,20 +608,20 @@ To ensure academic honesty, the following capabilities are explicitly outside th
 ### Project Scope — Presentation Summary
 *(Suitable for project reports, viva slides, and formal presentations)*
 
-> **System Overview**: Historical Webpage Comparison is a full-stack automated intelligence system that tracks structural, textual, and semantic revisions in web pages. The platform operates across three modes: offline HTML file comparison, live URL comparison, and historical Internet Archive snapshot comparison.
+> **System Overview**: Historical Webpage Comparison is a full-stack automated intelligence system that tracks structural, textual, and semantic revisions between different versions of the same webpage. The platform operates across two modes: offline HTML file comparison and historical Internet Archive snapshot comparison.
 >
 > **Core Architecture**: The engine parses raw HTML into Document Object Model trees, strips non-content tags, aligns corresponding elements using a 4-component weighted structural matcher, and calculates on-device semantic similarity using Sentence Transformers. The network layer is hardened against Server-Side Request Forgery (SSRF) and DNS rebinding attacks through asynchronous socket pinning.
 >
 > **Target Workload**: The application is designed for publicly accessible, server-rendered HTML pages, legal disclosures, policy documents, and archived captures. It evaluates on-demand comparisons for single-page pairs within a 10 MB streaming ceiling.
 >
-> **Key Distinctions**: Live comparison evaluates real-time web responses, whereas historical comparison queries Wayback CDX records. Semantic similarity is evaluated specifically across matched modified text items to detect meaning drift, rather than whole-page document classification.
+> **Key Distinctions**: The system compares different versions of the SAME original webpage—either supplied directly as HTML files or fetched as historical snapshots from the Wayback Machine. Semantic similarity is evaluated specifically across matched modified text items to detect meaning drift, rather than whole-page document classification.
 >
 > **Why It Is Useful**: It reduces superficial diff noise caused by whitespace, attribute ordering, and minor markup changes by matching DOM node hierarchies, helping reviewers focus on meaningful content additions, removals, and text updates.
 
 ---
 
 ### 30-Second Summary for Faculty / HOD
-> "Our project is an automated webpage revision tracking platform that bridges the gap between syntactic line diffs and human semantic understanding. It takes two versions of a webpage—from local files, live URLs, or historical Wayback snapshots—builds a normalized DOM tree, and uses a weighted scoring algorithm to detect added, removed, and modified elements. For modified text, it runs an on-device Sentence Transformer to measure whether wording revisions actually changed the meaning, while our network layer mitigates SSRF and DNS rebinding risks through IP blacklisting, custom AnyIO socket pinning, and fail-closed peer-address verification. It focuses on server-rendered HTML without client-side JavaScript execution."
+> "Our project is an automated webpage revision tracking platform that bridges the gap between syntactic line diffs and human semantic understanding. It takes two versions of a webpage—from local files or historical Wayback snapshots—builds a normalized DOM tree, and uses a weighted scoring algorithm to detect added, removed, and modified elements. For modified text, it runs an on-device Sentence Transformer to measure whether wording revisions actually changed the meaning, while our network layer mitigates SSRF and DNS rebinding risks through IP blacklisting, custom AnyIO socket pinning, and fail-closed peer-address verification. It focuses on server-rendered HTML without client-side JavaScript execution."
 
 ---
 

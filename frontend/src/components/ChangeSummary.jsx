@@ -38,9 +38,13 @@ export default function ChangeSummary({ counts, summarySentences, engineCounts }
       </div>
 
       <div className="change-summary-panel" aria-labelledby="change-summary-heading">
-        <h3 id="change-summary-heading">Change Summary</h3>
+        <h3 id="change-summary-heading">Meaningful Change Summary</h3>
         <div>
-          {summarySentences.map((sentence) => <p key={sentence}>{sentence}</p>)}
+          {summarySentences.map((sentence, idx) => (
+            <p key={idx} className={idx === 0 ? 'summary-lead-paragraph' : 'summary-detail-paragraph'}>
+              {sentence}
+            </p>
+          ))}
         </div>
       </div>
 

@@ -12,12 +12,11 @@ Welcome to the **Historical Webpage Comparison** user guide. This document provi
    - [Not Currently Implemented / Outside Current Scope](#not-currently-implemented--outside-current-scope)
    - [Project Scope — Presentation Summary](#project-scope--presentation-summary)
    - [30-Second Summary for Faculty / HOD](#30-second-summary-for-faculty--hod)
-3. [The Three Comparison Modes](#3-the-three-comparison-modes)
+3. [The Two Comparison Modes](#3-the-two-comparison-modes)
    - [Mode 1: Upload HTML Files (Mode `files`)](#mode-1-upload-html-files-mode-files)
-   - [Mode 2: Live URL Comparison (Mode `urls`)](#mode-2-live-url-comparison-mode-urls)
-   - [Mode 3: Wayback Historical Comparison (Mode `wayback`)](#mode-3-wayback-historical-comparison-mode-wayback)
+   - [Mode 2: Historical Webpage Comparison (Mode `wayback`)](#mode-2-historical-webpage-comparison-mode-wayback)
 4. [Supported Websites and Demonstration Examples](#4-supported-websites-and-demonstration-examples)
-   - [Compatibility Criteria for Live Websites](#compatibility-criteria-for-live-websites)
+   - [Compatibility Criteria for Target Webpages](#compatibility-criteria-for-target-webpages)
    - [Requirements for Wayback Historical Comparison](#requirements-for-wayback-historical-comparison)
    - [Demonstration Test Catalogue](#demonstration-test-catalogue)
    - [Exact Verified Demonstration Pairs](#exact-verified-demonstration-pairs)
@@ -48,8 +47,9 @@ The **Historical Webpage Comparison** platform enables users to compare two vers
 ## 2. Project Scope & Limitations
 
 ### Implemented in the Current Project
-- **HTML File Upload Comparison (`files`)**: Direct offline diffing of two uploaded static `.html` files.
-- **Live URL Comparison (`urls`)**: Concurrent streaming retrieval and comparison of two live internet web pages over secure transport.
+- **Two Comparison Modes**: HTML file upload (`files`) and historical Wayback comparison (`wayback`).
+- **Same-Webpage Focus**: Strictly scoped to comparing different versions of the *same* original webpage (via local files or Wayback historical captures).
+- **HTML File Upload Comparison (`files`)**: Direct offline diffing of two uploaded static `.html` files representing different versions of the same webpage.
 - **Wayback Machine Integration (`wayback`)**: Discovery of historical monthly snapshots via the Internet Archive CDX Server API and comparison using raw snapshot replay (`id_`).
 - **DOM / Structural Change Detection**: Conversion of HTML to normalized DOM node trees, tag pruning, and bipartite matching with weighted similarity scoring.
 - **Categorized Change Reporting**: Explicit classification of additions, removals, and modifications across semantic elements (`Heading`, `Paragraph`, `Link`, `Button`, `Page title`).
@@ -63,8 +63,10 @@ The **Historical Webpage Comparison** platform enables users to compare two vers
 ### Not Currently Implemented / Outside Current Scope
 To ensure academic honesty, the following capabilities are explicitly outside the current implementation scope:
 - **No Client-Side JavaScript Execution**: The engine does not execute JavaScript. Single-Page Applications (SPAs) that require client-side execution without Server-Side Rendering (SSR) expose only initial skeleton HTML.
-- **No Headless Browser Automation**: The application uses direct HTTP streaming clients; it does not drive a browser instance (such as Puppeteer, Playwright, or Selenium) for live comparison.
-- **No Visual / Pixel Screenshot Diffing**: The tool tracks content and DOM hierarchy. It does not measure rendered pixel differences such as CSS animations, font smoothing, or layout positioning that do not alter DOM attributes.
+- **No Headless Browser Automation**: The application uses direct HTTP streaming clients; it does not drive a browser instance (such as Puppeteer, Playwright, or Selenium) for snapshot retrieval.
+- **Visual Screenshot Previews (Milestone 2)**: Full visual side-by-side screenshot rendering is scheduled for Milestone 2 (current release provides structural DOM diffs, attribute changes, and textual diffs).
+- **Plain-English Explanations (Milestone 3)**: High-level natural language revision narratives are planned for Milestone 3 (current NLP provides semantic similarity scores, entity extraction, and keyword comparison).
+- **No Two-URL Arbitrary Comparison**: The platform is strictly scoped to comparing versions of the *same* original webpage; comparing two arbitrary unrelated URLs is intentionally excluded.
 - **No Recursive Domain Crawling**: The tool compares specific individual documents or URLs; it does not crawl an entire website domain recursively.
 - **No Multi-Page Automated Crawling**: It operates on single-page pairs, not automated directory trees.
 - **No Authentication or Cookie Sessions**: It does not support login-gated pages, paywalled content, or cookie-based sessions.
@@ -76,28 +78,28 @@ To ensure academic honesty, the following capabilities are explicitly outside th
 ### Project Scope — Presentation Summary
 *(Suitable for project reports, viva slides, and formal presentations)*
 
-> **System Overview**: Historical Webpage Comparison is a full-stack automated intelligence system that tracks structural, textual, and semantic revisions in web pages. The platform operates across three modes: offline HTML file comparison, live URL comparison, and historical Internet Archive snapshot comparison.
+> **System Overview**: Historical Webpage Comparison is a full-stack automated intelligence system that tracks structural, textual, and semantic revisions between different versions of the same webpage. The platform operates across two modes: offline HTML file comparison and historical Internet Archive snapshot comparison.
 >
 > **Core Architecture**: The engine parses raw HTML into Document Object Model trees, strips non-content tags, aligns corresponding elements using a 4-component weighted structural matcher, and calculates on-device semantic similarity using Sentence Transformers. The network layer is hardened against Server-Side Request Forgery (SSRF) and DNS rebinding attacks through asynchronous socket pinning.
 >
 > **Target Workload**: The application is designed for publicly accessible, server-rendered HTML pages, legal disclosures, policy documents, and archived captures. It evaluates on-demand comparisons for single-page pairs within a 10 MB streaming ceiling.
 >
-> **Key Distinctions**: Live comparison evaluates real-time web responses, whereas historical comparison queries Wayback CDX records. Semantic similarity is evaluated specifically across matched modified text items to detect meaning drift, rather than whole-page document classification.
+> **Key Distinctions**: The system compares different versions of the SAME original webpage—either supplied directly as HTML files or fetched as historical snapshots from the Wayback Machine. Semantic similarity is evaluated specifically across matched modified text items to detect meaning drift, rather than whole-page document classification.
 >
 > **Why It Is Useful**: It reduces superficial diff noise caused by whitespace, attribute ordering, and minor markup changes by matching DOM node hierarchies, helping reviewers focus on meaningful content additions, removals, and text updates.
 
 ---
 
 ### 30-Second Summary for Faculty / HOD
-> "Our project is an automated webpage revision tracking platform that bridges the gap between syntactic line diffs and human semantic understanding. It takes two versions of a webpage—from local files, live URLs, or historical Wayback snapshots—builds a normalized DOM tree, and uses a weighted scoring algorithm to detect added, removed, and modified elements. For modified text, it runs an on-device Sentence Transformer to measure whether wording revisions actually changed the meaning, while our network layer mitigates SSRF and DNS rebinding risks through IP blacklisting, custom AnyIO socket pinning, and fail-closed peer-address verification. It focuses on server-rendered HTML without client-side JavaScript execution."
+> "Our project is an automated webpage revision tracking platform that bridges the gap between syntactic line diffs and human semantic understanding. It takes two versions of a webpage—from local files or historical Wayback snapshots—builds a normalized DOM tree, and uses a weighted scoring algorithm to detect added, removed, and modified elements. For modified text, it runs an on-device Sentence Transformer to measure whether wording revisions actually changed the meaning, while our network layer mitigates SSRF and DNS rebinding risks through IP blacklisting, custom AnyIO socket pinning, and fail-closed peer-address verification. It focuses on server-rendered HTML without client-side JavaScript execution."
 
 ---
 
-## 3. The Three Comparison Modes
+## 3. The Two Comparison Modes
 
 ### Mode 1: Upload HTML Files (Mode `files`)
 
-*Best for: Comparing static HTML files saved on your computer, archived reports, or offline templates.*
+*Best for: Comparing static HTML files saved on your computer, archived reports, or offline templates representing two versions of the same webpage.*
 
 1. Click the **Upload HTML Files** tab.
 2. Under **Previous Version (Version 1)**, drag and drop an `.html` or `.htm` file, or click to open your system file picker.
@@ -110,21 +112,9 @@ To ensure academic honesty, the following capabilities are explicitly outside th
 
 ---
 
-### Mode 2: Live URL Comparison (Mode `urls`)
+### Mode 2: Historical Webpage Comparison (Mode `wayback`)
 
-*Best for: Comparing two active websites on the internet (e.g., staging vs. production, or competitor pages).*
-
-1. Click the **Live URL Comparison** tab.
-2. Enter the first URL in the **Previous Version URL** field (e.g., `https://example.com`).
-3. Enter the second URL in the **Current Version URL** field (e.g., `https://www.iana.org/domains/reserved`).
-4. Click **Compare Live URLs**.
-5. The backend concurrently fetches both pages over a secure, DNS-pinned connection, strips ephemeral scripts/styles, runs structural diffing, and executes the NLP semantic analysis pipeline.
-
----
-
-### Mode 3: Wayback Historical Comparison (Mode `wayback`)
-
-*Best for: Tracking how a specific public website evolved across years using the Internet Archive Wayback Machine.*
+*Best for: Tracking how a specific public webpage evolved across time using the Internet Archive Wayback Machine.*
 
 1. Click the **Wayback Historical Comparison** tab.
 2. Enter the target web address in the **Website URL** field (e.g., `https://www.iana.org`).
@@ -148,16 +138,16 @@ To ensure academic honesty, the following capabilities are explicitly outside th
 
 ---
 
-### Compatibility Criteria for Live Websites
-Live URL comparison is intended for publicly accessible websites that satisfy the following operational requirements:
+### Compatibility Criteria for Target Webpages
+Historical Webpage Comparison via Wayback Machine requires that target websites satisfy the following operational requirements:
 1. **Protocol**: Must use standard `http://` or `https://`.
 2. **Server-Rendered HTML**: Must return parseable HTML markup (`text/html` or `application/xhtml+xml`) containing a valid `<html>` document root.
-3. **No Authentication or Sessions**: Must be public; pages behind login gates, paywalls, or requiring session cookies are not supported.
-4. **No Anti-Bot or CAPTCHA Gates**: Must not be protected by Cloudflare Turnstile, Cloudflare Under Attack mode, Akamai Bot Manager, or similar anti-bot systems that block automated HTTP clients.
+3. **No Authentication or Sessions**: Must be publicly accessible; pages behind login gates, paywalls, or requiring session cookies are not supported.
+4. **No Anti-Bot or CAPTCHA Gates**: Must not be protected by anti-bot systems that block automated HTTP clients.
 5. **Resource Limits**: Response body must be under 10 Megabytes and must respond within the 20-second connection deadline.
 
 > [!CAUTION]
-> Compatibility depends on the target server's live HTTP response. Some websites return HTTP 403 Forbidden to automated User-Agents (for example, `umich.edu`), even if they appear accessible in desktop web browsers.
+> Compatibility depends on the target server's response. Some websites return HTTP 403 Forbidden to automated User-Agents (for example, `umich.edu`), even if they appear accessible in desktop web browsers.
 
 ---
 
@@ -174,15 +164,13 @@ Wayback Machine comparison additionally requires:
 
 The following table records candidate websites investigated using the actual comparison engine and network client:
 
-| Website | Live URL | Live Suitability | Wayback Availability | Historical Captures Checked | Purpose in Demo | Verification Status |
+| Website | Webpage URL | Suitability | Wayback Availability | Historical Captures Checked | Purpose in Demo | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **IANA Home** | `https://www.iana.org` | High; clean HTML, fast response (6.2 KB) | High; 24 monthly captures (2022–2023) | `20220128084535` vs `20231231222555` | Mode 3 Historical comparison & NLP | **Verified working** |
-| **IANA Reserved Domains** | `https://www.iana.org/domains/reserved` | High; semantic tables & lists (10.9 KB) | High | CDX indexed | Mode 2 Live pair target | **Verified working** |
-| **Example Domain** | `https://example.com` | High; lightweight static HTML (577 bytes) | High; 24 monthly captures (2022–2023) | Minimal content changes over time | Mode 2 Live pair source | **Verified working** |
-| **Python.org** | `https://www.python.org` | High; rich content, news (52 KB) | High; 24 monthly captures (2022–2023) | `20220131220219` vs `20231231231051` | Content-rich live & historical comparison | **Verified working** |
+| **IANA Home** | `https://www.iana.org` | High; clean HTML, fast response (6.2 KB) | High; 24 monthly captures (2022–2023) | `20220128084535` vs `20231231222555` | Mode 2 Historical comparison & NLP | **Verified working** |
+| **Python.org** | `https://www.python.org` | High; rich content, news (52 KB) | High; 24 monthly captures (2022–2023) | `20220131220219` vs `20231231231051` | Content-rich historical comparison | **Verified working** |
 | **MIT Homepage** | `https://www.mit.edu` | High; articles and spotlight links (47.7 KB) | High; 24 monthly captures (2022–2023) | `20220131213846` vs `20231231132448` | Academic portal comparison | **Verified working** |
-| **Wikipedia Portal** | `https://www.wikipedia.org` | High; multilingual portal (122 KB) | High; extensive historical archive | Not yet compared in engine | High-volume portal comparison | **Live verified; Wayback needs testing** |
-| **MDN Web Docs** | `https://developer.mozilla.org/en-US/` | Moderate; documentation home (116 KB) | Moderate; frequent Jamstack layout updates | Not yet compared in engine | Technical documentation diff | **Live verified; Wayback needs testing** |
+| **Wikipedia Portal** | `https://www.wikipedia.org` | High; multilingual portal (122 KB) | High; extensive historical archive | Not yet compared in engine | High-volume portal comparison | **Online accessible; Wayback needs verification** |
+| **MDN Web Docs** | `https://developer.mozilla.org/en-US/` | Moderate; documentation home (116 KB) | Moderate; frequent Jamstack layout updates | Not yet compared in engine | Technical documentation diff | **Online accessible; Wayback needs verification** |
 | **University of Michigan** | `https://umich.edu` | **Unsuitable**; returns HTTP 403 Forbidden to automated requests | CDX indexed | Blocked at transport | Demonstrating anti-bot / 403 handling | **Not suitable (HTTP 403)** |
 
 ---
@@ -205,19 +193,7 @@ For live presentations and evaluations, use these verified test pairs:
 > [!NOTE]
 > Keep this separate from `test-files/mini project`, which contains a different test fixture pair producing 21 changes (8 additions, 1 removal, 12 modifications).
 
-#### Pair B: Live Website Comparison (`urls`)
-- **Input URLs**:
-  - Version 1: `https://example.com`
-  - Version 2: `https://www.iana.org/domains/reserved`
-- **Verification Status**: **Previously verified**
-- **Expected Results**:
-  - Total Changes: `10`
-  - Added: `5`
-  - Removed: `1`
-  - Modified: `4`
-  - NLP Semantic Analysis: Displays moderate semantic overlap with keyword and entity tags.
-
-#### Pair C: Historical Wayback Comparison (`wayback`)
+#### Pair B: Historical Wayback Comparison (`wayback`)
 - **Target URL**: `https://www.iana.org`
 - **Selected Timestamps**:
   - Snapshot 1: `20220128084535` (Jan 28, 2022 08:45 UTC)
@@ -231,7 +207,7 @@ For live presentations and evaluations, use these verified test pairs:
   - Average Semantic Similarity: `44.0%` (Substantial Shift, score `0.4399`)
   - Summary: *"Analyzed 5 text modifications with an average semantic similarity of 44.0%. Found 1 text removal."*
 
-#### Pair D: Security Defense Demonstration
+#### Pair C: Security Defense Demonstration
 - **Test 1 (Loopback Address)**: `http://127.0.0.1:8000`
   - *Expected Rejection*: Immediate HTTP 400 error: `"Access to 127.0.0.1 is forbidden: Loopback address (127.0.0.1)."`.
 - **Test 2 (Prohibited Hostname)**: `http://localhost:8000`
@@ -289,7 +265,7 @@ The top section displays high-level metrics:
 
 ### Section 02: Semantic Analysis of Modified Text (NLP)
 
-*(Rendered only in Live URL and Wayback modes when modified text elements are present.)*
+*(Rendered in Historical Webpage Comparison mode when modified text elements are present.)*
 
 > **Notice**: *"Applies strictly to matched text modifications; does not reflect whole-webpage similarity."*
 
@@ -328,16 +304,16 @@ The changes feed lists every structural difference:
 ## 7. Realistic Walkthrough Scenarios
 
 ### Scenario A: Terms of Service Revisions
-- **Goal**: A legal analyst wants to see how a company modified its Privacy Policy.
-- **Action**: In Live URL mode, input the previous archived policy URL and the current policy URL.
+- **Goal**: A legal analyst wants to see how a company modified its Privacy Policy over time.
+- **Action**: In Wayback mode, enter the organization's privacy policy URL, discover historical captures across 2021 to 2024, and select a 2021 snapshot and a 2024 snapshot.
 - **Result**:
   - The NLP panel highlights that semantic similarity dropped to **Moderate Shift (68.4%)**.
   - The Named Entities breakdown shows that a specific date (`"January 1, 2021"`) was removed and replaced with (`"March 15, 2024"`).
   - An added paragraph card reveals an updated data-retention clause.
 
-### Scenario B: Competitor Product Updates
-- **Goal**: An e-commerce manager wants to monitor a competitor's pricing table over the last two years.
-- **Action**: In Wayback mode, enter the product URL and set the range from `2022` to `2024`. Select a 2022 monthly snapshot and a 2023 monthly snapshot.
+### Scenario B: Product Page Updates
+- **Goal**: An analyst wants to monitor a product or pricing page over the last two years.
+- **Action**: In Wayback mode, enter the webpage URL and set the range from `2022` to `2024`. Select a 2022 monthly snapshot and a 2023 monthly snapshot.
 - **Result**:
   - The overview shows modifications and additions.
   - The NLP entity breakdown isolates updated monetary amounts (e.g., `"$49/mo"` $\to$ `"$79/mo"`).
@@ -348,7 +324,7 @@ The changes feed lists every structural difference:
 ## 8. Frequently Asked Questions (FAQ)
 
 #### Q: Why does Mode 1 not show the Semantic Analysis panel?
-> **A**: Mode 1 is designed as an ultra-fast, local, offline file diff tool. The NLP pipeline requires running transformer models and is reserved for Live URL and Historical comparisons where semantic intelligence is most critical.
+> **A**: Mode 1 is designed as an ultra-fast, local, offline file diff tool. The NLP pipeline requires running transformer models and is reserved for Historical Webpage Comparison where semantic intelligence across temporal versions is most critical.
 
 #### Q: Can I compare pages from single-page web applications (like React or Vue)?
 > **A**: Yes, provided the server returns initial HTML content. However, the system does not execute client-side JavaScript. If a web application renders entirely through client-side JavaScript without Server-Side Rendering (SSR), the comparison will only see the initial skeleton HTML.

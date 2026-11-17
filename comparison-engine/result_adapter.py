@@ -176,13 +176,34 @@ def _has_grouped_ancestor(path: str, grouping_roots: set[str]) -> bool:
     return any(path.startswith(f"{root}/") for root in grouping_roots)
 
 
+def _container_context(path: str) -> str:
+    path_lower = path.lower()
+    if "/footer" in path_lower:
+        return "the footer"
+    if "/header" in path_lower:
+        return "the header"
+    if "/nav" in path_lower:
+        return "the navigation area"
+    if "/aside" in path_lower:
+        return "the sidebar"
+    if "/main" in path_lower:
+        return "the main content"
+    return "the page layout"
+
+
 def _structural_value(item: dict[str, Any], node: dict[str, Any], path: str) -> str:
     text = _normalized_text(item.get("text")) or _normalized_text(node.get("text"))
     if text:
         return text
 
     attributes = _format_attributes(node.get("attributes"))
-    return attributes or path
+    if attributes:
+        return attributes
+
+    tag = (item.get("tag") or node.get("tag") or "element").lower()
+    label = _label_for(tag)
+    context = _container_context(path)
+    return f"Empty {label.lower()} in {context}"
 
 
 def _append_structural_changes(

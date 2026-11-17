@@ -17,10 +17,13 @@ from datetime import datetime, timezone
 import json
 import logging
 import re
+import ssl
 import time
 from typing import Any, Mapping
 import urllib.parse
 
+import anyio
+import httpx
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -47,7 +50,7 @@ try:
         parse_and_validate_url,
         validate_target_url,
     )
-    from .live_compare import HTMLValidationError, LiveFetchError, validate_html_response
+    from .html_validator import HTMLValidationError, LiveFetchError, validate_html_response
 except ImportError:
     from security.pinned_transport import PinnedAsyncHTTPTransport
     from security.redirect_handler import (
@@ -71,7 +74,7 @@ except ImportError:
         parse_and_validate_url,
         validate_target_url,
     )
-    from live_compare import HTMLValidationError, LiveFetchError, validate_html_response
+    from html_validator import HTMLValidationError, LiveFetchError, validate_html_response
 
 logger = logging.getLogger(__name__)
 
@@ -448,6 +451,7 @@ async def safe_fetch_wayback_async(
     url: str,
     method: str = "GET",
     headers: dict[str, str] | None = None,
+    body: bytes | None = None,
     max_redirects: int = DEFAULT_MAX_REDIRECTS,
     max_response_size: int = DEFAULT_MAX_RESPONSE_SIZE,
     total_deadline: float = DEFAULT_TOTAL_DEADLINE,
@@ -455,7 +459,7 @@ async def safe_fetch_wayback_async(
     ssl_context: Any = None,
 ) -> SafeFetchResult:
     """Fetch a Wayback resource asynchronously with full SSRF, DNS pinning, TLS verification,
-    and strict host-allowlist enforcement BEFORE every hop.
+    strict host-allowlist enforcement BEFORE every hop, and strict overall deadline enforcement.
 
     Rejects any redirect to a host other than web.archive.org / archive.org BEFORE the
     redirected request is initiated.
@@ -473,6 +477,7 @@ async def safe_fetch_wayback_async(
 
     current_url = url
     current_method = method.upper()
+    current_body = body
     visited_urls: set[str] = {current_url}
     redirect_history: list[str] = []
 
@@ -485,134 +490,183 @@ async def safe_fetch_wayback_async(
 
     deadline = time.monotonic() + total_deadline
     tls_verify = ssl_context if ssl_context is not None else True
-    transport = PinnedAsyncHTTPTransport(verify=tls_verify)
 
-    import httpx
-    async with httpx.AsyncClient(
-        transport=transport,
-        follow_redirects=False,
-    ) as client:
-        redirect_count = 0
-        while True:
-            remaining_time = deadline - time.monotonic()
-            if remaining_time <= 0:
-                raise ResourceLimitError(f"Overall request deadline ({total_deadline}s) exceeded.")
+    active_response: httpx.Response | None = None
+    try:
+        with anyio.fail_after(total_deadline):
+            transport = PinnedAsyncHTTPTransport(verify=tls_verify)
 
-            hop_timeout = httpx.Timeout(
-                timeout=remaining_time,
-                connect=min(5.0, remaining_time),
-                read=min(12.0, remaining_time),
-            )
+            async with httpx.AsyncClient(
+                transport=transport,
+                follow_redirects=False,
+            ) as client:
+                redirect_count = 0
+                while True:
+                    remaining_time = deadline - time.monotonic()
+                    if remaining_time <= 0:
+                        raise ResourceLimitError(f"Overall request deadline ({total_deadline}s) exceeded.")
 
-            request = client.build_request(
-                method=current_method,
-                url=current_url,
-                headers=req_headers,
-                timeout=hop_timeout,
-            )
-
-            try:
-                response = await client.send(request, stream=True)
-            except SSRFSecurityError:
-                raise
-            except httpx.TimeoutException as exc:
-                raise ResourceLimitError(f"Request timeout exceeded: {exc}") from exc
-            except httpx.ConnectError as exc:
-                raise DNSResolutionError(f"Connection failed: {exc}") from exc
-            except Exception as exc:
-                raise SSRFSecurityError(f"Request failed: {exc}") from exc
-
-            # Handle redirects
-            if response.status_code in REDIRECT_STATUS_CODES:
-                redirect_count += 1
-                if redirect_count > max_redirects:
-                    await response.aclose()
-                    raise RedirectSecurityError(f"Maximum redirect count of {max_redirects} exceeded.")
-
-                location = response.headers.get("location")
-                if not location:
-                    await response.aclose()
-                    raise RedirectSecurityError(
-                        f"Redirect status {response.status_code} received without Location header."
+                    hop_timeout = httpx.Timeout(
+                        timeout=remaining_time,
+                        connect=min(5.0, remaining_time),
+                        read=min(12.0, remaining_time),
                     )
 
-                new_url = urllib.parse.urljoin(current_url, location.strip())
-
-                # CRITICAL: Validate host BEFORE sending request or navigating
-                try:
-                    validate_wayback_destination_host(new_url)
-                except OffHostRedirectError:
-                    await response.aclose()
-                    raise
-
-                # Re-validate destination against SSRF
-                try:
-                    validate_target_url(new_url, resolve_dns=False)
-                except SSRFSecurityError as exc:
-                    await response.aclose()
-                    raise RedirectSecurityError(
-                        f"Redirect destination '{new_url}' violates security rules: {exc}"
-                    ) from exc
-
-                # Prevent HTTPS to HTTP downgrade
-                current_scheme = urllib.parse.urlsplit(current_url).scheme.lower()
-                new_scheme = urllib.parse.urlsplit(new_url).scheme.lower()
-                if current_scheme == "https" and new_scheme == "http":
-                    await response.aclose()
-                    raise RedirectSecurityError(
-                        f"Insecure redirect downgrade from HTTPS to HTTP: '{current_url}' -> '{new_url}'."
+                    request = client.build_request(
+                        method=current_method,
+                        url=current_url,
+                        headers=req_headers,
+                        content=current_body if current_method in ("POST", "PUT", "PATCH") else None,
+                        timeout=hop_timeout,
                     )
 
-                if new_url in visited_urls:
-                    await response.aclose()
-                    raise RedirectSecurityError(f"Circular redirect detected: '{new_url}'.")
+                    try:
+                        response = await client.send(request, stream=True)
+                        active_response = response
+                    except (SSRFSecurityError, TimeoutError):
+                        raise
+                    except httpx.TimeoutException as exc:
+                        raise ResourceLimitError(f"Request timeout exceeded: {exc}") from exc
+                    except httpx.ConnectError as exc:
+                        cause = getattr(exc, "__cause__", None)
+                        err_str = (str(exc) + " " + str(cause)).lower()
+                        if (
+                            "certificate" in err_str
+                            or "ssl" in err_str
+                            or "hostname mismatch" in err_str
+                            or "verify failed" in err_str
+                            or (cause is not None and isinstance(cause, ssl.SSLError))
+                        ):
+                            raise TLSVerificationError(f"TLS certificate verification failed: {exc}") from exc
+                        raise DNSResolutionError(f"Connection failed: {exc}") from exc
+                    except Exception as exc:
+                        raise SSRFSecurityError(f"Request failed: {exc}") from exc
 
-                if not is_same_origin(current_url, new_url):
-                    req_headers = strip_sensitive_headers(req_headers)
+                    # Handle redirects
+                    if response.status_code in REDIRECT_STATUS_CODES:
+                        redirect_count += 1
+                        if redirect_count > max_redirects:
+                            await response.aclose()
+                            active_response = None
+                            raise RedirectSecurityError(f"Maximum redirect count of {max_redirects} exceeded.")
 
-                if response.status_code in (301, 302, 303):
-                    current_method = "GET"
-                    req_headers = strip_body_headers(req_headers)
+                        location = response.headers.get("location")
+                        if not location:
+                            await response.aclose()
+                            active_response = None
+                            raise RedirectSecurityError(
+                                f"Redirect status {response.status_code} received without Location header."
+                            )
 
-                visited_urls.add(new_url)
-                redirect_history.append(current_url)
-                current_url = new_url
-                await response.aclose()
-                continue
+                        new_url = urllib.parse.urljoin(current_url, location.strip())
 
-            # Non-redirect response: Content-Length check
-            content_length_header = response.headers.get("content-length")
-            if content_length_header:
-                try:
-                    if int(content_length_header) > max_response_size:
+                        # CRITICAL: Validate host BEFORE sending request or navigating
+                        try:
+                            validate_wayback_destination_host(new_url)
+                        except OffHostRedirectError:
+                            await response.aclose()
+                            active_response = None
+                            raise
+
+                        # Re-validate destination against SSRF
+                        try:
+                            validate_target_url(new_url, resolve_dns=False)
+                        except SSRFSecurityError as exc:
+                            await response.aclose()
+                            active_response = None
+                            raise RedirectSecurityError(
+                                f"Redirect destination '{new_url}' violates security rules: {exc}"
+                            ) from exc
+
+                        # Prevent HTTPS to HTTP downgrade
+                        current_scheme = urllib.parse.urlsplit(current_url).scheme.lower()
+                        new_scheme = urllib.parse.urlsplit(new_url).scheme.lower()
+                        if current_scheme == "https" and new_scheme == "http":
+                            await response.aclose()
+                            active_response = None
+                            raise RedirectSecurityError(
+                                f"Insecure redirect downgrade from HTTPS to HTTP: '{current_url}' -> '{new_url}'."
+                            )
+
+                        if new_url in visited_urls:
+                            await response.aclose()
+                            active_response = None
+                            raise RedirectSecurityError(f"Circular redirect detected: '{new_url}'.")
+
+                        if not is_same_origin(current_url, new_url):
+                            req_headers = strip_sensitive_headers(req_headers)
+
+                        if response.status_code == 303:
+                            current_method = "GET"
+                            current_body = None
+                            req_headers = strip_body_headers(req_headers)
+                        elif response.status_code in (301, 302):
+                            if current_method in ("POST", "PUT", "PATCH", "DELETE"):
+                                current_method = "GET"
+                                current_body = None
+                                req_headers = strip_body_headers(req_headers)
+
+                        visited_urls.add(new_url)
+                        redirect_history.append(current_url)
+                        current_url = new_url
                         await response.aclose()
-                        raise ResourceLimitError("Content-Length exceeds maximum allowed size.")
-                except ValueError:
-                    pass
+                        active_response = None
+                        continue
 
-            # Stream body with size limits
-            body_chunks: list[bytes] = []
-            total_bytes = 0
+                    # Non-redirect response: Content-Length check
+                    content_length_header = response.headers.get("content-length")
+                    if content_length_header:
+                        try:
+                            content_length = int(content_length_header)
+                            if content_length > max_response_size:
+                                await response.aclose()
+                                active_response = None
+                                raise ResourceLimitError(
+                                    f"Content-Length ({content_length} bytes) exceeds maximum allowed size of {max_response_size} bytes."
+                                )
+                        except ValueError:
+                            pass
+
+                    # Stream body with size limits
+                    body_chunks: list[bytes] = []
+                    total_bytes = 0
+                    try:
+                        async for chunk in response.aiter_bytes():
+                            if time.monotonic() > deadline:
+                                raise ResourceLimitError(
+                                    f"Overall request deadline ({total_deadline}s) exceeded during body download."
+                                )
+                            total_bytes += len(chunk)
+                            if total_bytes > max_response_size:
+                                raise ResourceLimitError(
+                                    f"Response body exceeded maximum allowed limit of {max_response_size} bytes."
+                                )
+                            body_chunks.append(chunk)
+                    finally:
+                        await response.aclose()
+                        active_response = None
+
+                    return SafeFetchResult(
+                        url=current_url,
+                        status_code=response.status_code,
+                        headers=response.headers,
+                        content=b"".join(body_chunks),
+                        redirect_history=redirect_history,
+                    )
+    except TimeoutError as exc:
+        if active_response is not None:
             try:
-                async for chunk in response.aiter_bytes():
-                    if time.monotonic() > deadline:
-                        raise ResourceLimitError("Overall deadline exceeded during streaming.")
-                    total_bytes += len(chunk)
-                    if total_bytes > max_response_size:
-                        raise ResourceLimitError(
-                            f"Response body exceeded maximum allowed limit of {max_response_size} bytes."
-                        )
-                    body_chunks.append(chunk)
-            finally:
-                await response.aclose()
-
-            return SafeFetchResult(
-                url=current_url,
-                status_code=response.status_code,
-                headers=response.headers,
-                content=b"".join(body_chunks),
-                redirect_history=redirect_history,
-            )
+                await active_response.aclose()
+            except Exception:
+                pass
+        raise ResourceLimitError(f"Overall request deadline ({total_deadline}s) exceeded.") from exc
+    except httpx.TimeoutException as exc:
+        if active_response is not None:
+            try:
+                await active_response.aclose()
+            except Exception:
+                pass
+        raise ResourceLimitError(f"Request timeout exceeded: {exc}") from exc
 
 
 # ============================================================================

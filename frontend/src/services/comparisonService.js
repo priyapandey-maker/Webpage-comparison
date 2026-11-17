@@ -26,55 +26,6 @@ export async function compareFiles(version1File, version2File) {
   return response.json();
 }
 
-export async function compareUrls(url1, url2, options = {}) {
-  let response;
-  try {
-    response = await fetch(`${API_BASE_URL}/api/compare-urls`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url1, url2 }),
-      signal: options?.signal,
-    });
-  } catch (networkError) {
-    if (networkError.name === 'AbortError') {
-      throw networkError;
-    }
-    throw new Error('Unable to reach the comparison service. Please ensure the backend is running and accessible.');
-  }
-
-  if (!response.ok) {
-    let message = 'Comparison failed. Please check both URLs and try again.';
-    try {
-      const error = await response.json();
-      if (typeof error?.detail === 'string' && error.detail.trim()) {
-        message = error.detail.trim();
-      } else if (Array.isArray(error?.detail) && error.detail.length > 0) {
-        const firstErr = error.detail[0];
-        message = firstErr.msg || 'Validation failed for the requested URLs.';
-      }
-    } catch {
-      if (response.status === 400) {
-        message = 'The requested URL was rejected by security validation.';
-      } else if (response.status === 413) {
-        message = 'The target webpage exceeded the maximum allowed size of 10 MB.';
-      } else if (response.status === 415) {
-        message = 'The target webpage returned an unsupported format. Only HTML pages can be compared.';
-      } else if (response.status === 422) {
-        message = 'The webpage content is empty or contains unparseable HTML.';
-      } else if (response.status === 502) {
-        message = 'Upstream server error: could not fetch the webpage from the target server.';
-      } else if (response.status === 504) {
-        message = 'Request timed out while waiting for the target webpage to respond.';
-      }
-    }
-    throw new Error(message);
-  }
-
-  return response.json();
-}
-
 export async function getWaybackSnapshots(url, fromYear, toYear, options = {}) {
   const params = new URLSearchParams({ url: (url || '').trim() });
   if (fromYear != null && String(fromYear).trim()) {

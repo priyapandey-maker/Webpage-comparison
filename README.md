@@ -16,7 +16,7 @@ For comprehensive academic, technical, demonstration, and evaluation details, co
 
 | Document | Description |
 | :--- | :--- |
-| **[User Guide (USER_GUIDE.md)](./USER_GUIDE.md)** | Non-technical and practitioner guide covering all three comparison modes (`files`, `urls`, `wayback`), input rules, SSRF security warnings, supported website catalogue, interpreting results, and real-world examples. |
+| **[User Guide (USER_GUIDE.md)](./USER_GUIDE.md)** | Non-technical and practitioner guide covering both comparison modes (`files` and `wayback`), input rules, SSRF security warnings, supported website catalogue, interpreting results, and real-world examples. |
 | **[Technical Documentation (TECHNICAL_DOCUMENTATION.md)](./TECHNICAL_DOCUMENTATION.md)** | Deep-dive architectural specification detailing DOM algorithms, mathematical formulas, NLP pipelines, SSRF defense, network transports, API schemas, and test evidence. |
 | **[Viva & Interview Preparation (VIVA_PREPARATION.md)](./VIVA_PREPARATION.md)** | Comprehensive oral exam defense guide featuring 30s/1m/3m elevator pitches, design defenses ("Why this, not that?"), beginner glossaries, and 52 categorized viva Q&As. |
 | **[Setup & Demonstration Guide (SETUP_AND_DEMO.md)](./SETUP_AND_DEMO.md)** | Step-by-step installation instructions, environment prerequisites, model downloads, test suite execution, structured demonstration catalogue, scripted flows, and troubleshooting. |
@@ -25,10 +25,9 @@ For comprehensive academic, technical, demonstration, and evaluation details, co
 
 ## Key Features
 
-- **Three Comparison Modes**:
-  1. **HTML File Upload (`files`)**: Fast, zero-network structural diffing of uploaded static `.html` files.
-  2. **Live URL Comparison (`urls`)**: Concurrent streaming and comparison of two live internet web pages over hardened HTTPX transport.
-  3. **Wayback Machine Integration (`wayback`)**: Automated discovery of historical captures via the Internet Archive CDX Server API with monthly collapsing (`timestamp:6`) and raw snapshot replay (`id_`).
+- **Two Comparison Modes**:
+  1. **HTML File Upload (`files`)**: Fast, zero-network structural diffing of uploaded static `.html` files representing different versions of the same webpage.
+  2. **Historical Webpage Comparison (`wayback`)**: Automated discovery of historical captures for a target webpage URL via the Internet Archive CDX Server API with monthly collapsing (`timestamp:6`) and raw snapshot replay (`id_`), comparing two historical captures of the same webpage.
 - **DOM-Level Structural Diffing**:
   - Fault-tolerant HTML tree extraction using BeautifulSoup with `lxml`.
   - Automatic pruning of non-content elements (`<script>`, `<style>`, `<noscript>`, `<svg>`, `<canvas>`).
@@ -70,7 +69,6 @@ graph LR
     end
 
     subgraph External["External Network"]
-        WEB["Live Web Servers"]
         ARCHIVE["Internet Archive web.archive.org"]
     end
 
@@ -82,7 +80,6 @@ graph LR
     API --> WAY
     WAY --> PIN
     API --> NLP
-    PIN -->|Direct Validated IP Connection| WEB
     PIN -->|CDX Monthly & Raw Replay id_| ARCHIVE
 ```
 
@@ -91,7 +88,8 @@ graph LR
 ## Project Scope & Limitations
 
 ### Implemented in the Current Project
-- **Three Comparison Modes**: HTML file upload (`files`), live URL comparison (`urls`), and historical Wayback comparison (`wayback`).
+- **Two Comparison Modes**: HTML file upload (`files`) and historical Wayback comparison (`wayback`).
+- **Same-Webpage Focus**: Strictly scoped to comparing different versions of the *same* original webpage (via local files or Wayback historical snapshots).
 - **DOM / Structural Change Detection**: DOM tree building, tag pruning, and bipartite matching with weighted similarity scoring.
 - **Categorized Change Reporting**: Explicit classification of additions, removals, and modifications across semantic elements (`Heading`, `Paragraph`, `Link`, `Button`, `Page title`).
 - **Granular NLP Analysis of Modified Text**: Sentence Transformers (`all-MiniLM-L6-v2`) computing cosine similarity across matched modified text items, with deterministic token Jaccard fallback.
@@ -101,8 +99,10 @@ graph LR
 
 ### Outside Current Scope / Operational Limitations
 - **No Client-Side JavaScript Execution**: The engine does not execute JavaScript. Single-Page Applications (SPAs) that require client-side execution without Server-Side Rendering (SSR) expose only initial skeleton HTML.
-- **No Headless Browser Automation**: The application uses direct HTTP streaming clients; it does not drive a browser instance (such as Puppeteer, Playwright, or Selenium) for live comparison.
-- **No Visual / Pixel Screenshot Diffing**: The tool tracks content and DOM hierarchy. It does not measure rendered pixel differences such as CSS animations, font smoothing, or layout positioning that do not alter DOM attributes.
+- **No Headless Browser Automation**: The application uses direct HTTP streaming clients; it does not drive a browser instance (such as Puppeteer, Playwright, or Selenium) for snapshot retrieval.
+- **Visual Screenshot Previews (Milestone 2)**: Full visual side-by-side screenshot rendering is scheduled for Milestone 2 (current release provides structural DOM diffs, attribute changes, and textual diffs).
+- **Plain-English Explanations (Milestone 3)**: High-level natural language revision narratives are planned for Milestone 3 (current NLP provides semantic similarity scores, entity extraction, and keyword comparison).
+- **No Two-URL Arbitrary Comparison**: The platform is strictly scoped to comparing versions of the *same* original webpage; comparing two arbitrary unrelated URLs is intentionally excluded.
 - **No Recursive Domain Crawling**: The tool compares specific individual documents or URLs; it does not crawl an entire website domain recursively.
 - **No Multi-Page Automated Crawling**: It operates on single-page pairs, not automated directory trees.
 - **No Authentication or Cookie Sessions**: It does not support login-gated pages, paywalled content, or cookie-based sessions.
@@ -114,20 +114,20 @@ graph LR
 ### Project Scope — Presentation Summary
 *(Suitable for project reports, viva slides, and formal presentations)*
 
-> **System Overview**: Historical Webpage Comparison is a full-stack automated intelligence system that tracks structural, textual, and semantic revisions in web pages. The platform operates across three modes: offline HTML file comparison, live URL comparison, and historical Internet Archive snapshot comparison.
+> **System Overview**: Historical Webpage Comparison is a full-stack automated intelligence system that tracks structural, textual, and semantic revisions between different versions of the same webpage. The platform operates across two modes: offline HTML file comparison and historical Internet Archive snapshot comparison.
 >
 > **Core Architecture**: The engine parses raw HTML into Document Object Model trees, strips non-content tags, aligns corresponding elements using a 4-component weighted structural matcher, and calculates on-device semantic similarity using Sentence Transformers. The network layer is hardened against Server-Side Request Forgery (SSRF) and DNS rebinding attacks through asynchronous socket pinning.
 >
 > **Target Workload**: The application is designed for publicly accessible, server-rendered HTML pages, legal disclosures, policy documents, and archived captures. It evaluates on-demand comparisons for single-page pairs within a 10 MB streaming ceiling.
 >
-> **Key Distinctions**: Live comparison evaluates real-time web responses, whereas historical comparison queries Wayback CDX records. Semantic similarity is evaluated specifically across matched modified text items to detect meaning drift, rather than whole-page document classification.
+> **Key Distinctions**: The system compares different versions of the SAME original webpage—either supplied directly as HTML files or fetched as historical snapshots from the Wayback Machine. Semantic similarity is evaluated specifically across matched modified text items to detect meaning drift, rather than whole-page document classification.
 >
 > **Why It Is Useful**: It reduces superficial diff noise caused by whitespace, attribute ordering, and minor markup changes by matching DOM node hierarchies, helping reviewers focus on meaningful content additions, removals, and text updates.
 
 ---
 
 ### 30-Second Summary for Faculty / HOD
-> "Our project is an automated webpage revision tracking platform that bridges the gap between syntactic line diffs and human semantic understanding. It takes two versions of a webpage—from local files, live URLs, or historical Wayback snapshots—builds a normalized DOM tree, and uses a weighted scoring algorithm to detect added, removed, and modified elements. For modified text, it runs an on-device Sentence Transformer to measure whether wording revisions actually changed the meaning, while our network layer mitigates SSRF and DNS rebinding risks through IP blacklisting, custom AnyIO socket pinning, and fail-closed peer-address verification. It focuses on server-rendered HTML without client-side JavaScript execution."
+> "Our project is an automated webpage revision tracking platform that bridges the gap between syntactic line diffs and human semantic understanding. It takes two versions of a webpage—from local files or historical Wayback snapshots—builds a normalized DOM tree, and uses a weighted scoring algorithm to detect added, removed, and modified elements. For modified text, it runs an on-device Sentence Transformer to measure whether wording revisions actually changed the meaning, while our network layer mitigates SSRF and DNS rebinding risks through IP blacklisting, custom AnyIO socket pinning, and fail-closed peer-address verification. It focuses on server-rendered HTML without client-side JavaScript execution."
 
 ---
 
@@ -187,17 +187,17 @@ pytest tests/ -v
 ```
 
 ```text
-======================= 291 passed in 19.31s =======================
+======================= 272 passed in 44.34s =======================
 ```
 
 | Component | Test File | Tests | Coverage Scope |
 | :--- | :--- | :---: | :--- |
 | **DOM Parsing** | `test_html_tree.py` | 5 | Tree hierarchy, tag stripping, text cleaning. |
 | **Structural Matcher** | `test_structural_compare.py` | 5 | Weighted matching formula, modification thresholds. |
-| **URL & SSRF Validator** | `test_security.py` / `test_url_validator.py` | 56 | Scheme validation, IP literal parsing, private IP blocks. |
+| **URL & SSRF Validator** | `test_security.py` / `test_url_validator.py` | 50 | Scheme validation, IP literal parsing, private IP blocks. |
 | **Pinned Transport** | `test_pinned_transport.py` | 82 | SSRF blacklist, AnyIO DNS pinning, redirect controls, socket checks. |
 | **NLP Engine** | `test_nlp.py` | 47 | Sentence embeddings, cosine tiers, NER regex fallback, keywords. |
-| **Live Compare** | `test_live_compare.py` | 24 | Web fetching, payload boundaries, error handling. |
+| **HTML Validation & API Retirement** | `test_live_compare.py` | 11 | HTML content-type validation, status checking, 404 retirement verification. |
 | **Wayback Client** | `test_wayback.py` | 48 | CDX queries, monthly snapshot collapsing, raw replay. |
 | **Wayback API** | `test_api_wayback.py` | 24 | FastAPI `/api/wayback/*` route contracts, parameter validation, errors. |
 
@@ -223,7 +223,8 @@ Webpage-comparison/
 │   │   ├── structural_match.py        # Weighted 4-component node similarity scoring
 │   │   ├── structural_compare.py      # Bipartite tree pairing orchestrator
 │   │   ├── change_detector.py         # Semantic change categorization and node similarity
-│   │   ├── live_compare.py            # Live URL fetching orchestrator
+│   │   ├── html_validator.py          # HTML response validation, status and MIME checks
+│   │   ├── live_compare.py            # Backward-compatible re-export module
 │   │   ├── wayback_client.py          # Internet Archive CDX and replay client
 │   │   ├── nlp/
 │   │   │   ├── pipeline.py            # NLP orchestrator over detected changes
@@ -236,7 +237,7 @@ Webpage-comparison/
 │   │       ├── ssrf_validator.py      # URL syntax, scheme, and IP blacklist checks
 │   │       ├── redirect_handler.py    # Safe redirect loop, streaming & size limits
 │   │       └── pinned_transport.py    # AnyIO network backend for DNS pinning
-│   ├── tests/                         # Pytest test suite (291 tests)
+│   ├── tests/                         # Pytest test suite (272 tests)
 │   └── examples/                      # Fixture files for testing (version1.html, version2.html)
 │
 └── frontend/                          # React + Vite frontend
@@ -254,7 +255,7 @@ Webpage-comparison/
     │   │   ├── FileDropZone.jsx       # Drag-and-drop HTML upload area
     │   │   └── NlpSummaryPanel.jsx    # Semantic metrics and modified text accordion
     │   ├── pages/
-    │   │   ├── UploadPage.jsx         # Input forms for files, urls, and wayback
+    │   │   ├── UploadPage.jsx         # Input forms for HTML files and Wayback historical comparison
     │   │   └── ResultsPage.jsx        # Comparison dashboard and change list
     │   └── utils/
     │       ├── generateSummary.js     # Narrative text generation utility

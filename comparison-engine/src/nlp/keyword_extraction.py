@@ -38,6 +38,75 @@ DEFAULT_STOP_WORDS = frozenset({
 # Matches alphanumeric words, preserving hyphenated terms
 _WORD_PATTERN = re.compile(r"\b[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*\b")
 
+_TECHNICAL_EXTENSIONS = (
+    ".css", ".js", ".ico", ".png", ".jpg", ".jpeg", ".svg", ".gif",
+    ".woff", ".woff2", ".ttf", ".eot", ".map", ".json", ".xml",
+)
+
+_TECHNICAL_TERMS = frozenset({
+    "href", "rel", "stylesheet", "shortcut", "icon", "static", "css", "img",
+    "html", "body", "div", "span", "p", "a", "h1", "h2", "h3", "h4", "h5", "h6",
+    "ul", "li", "ol", "table", "tbody", "thead", "tr", "td", "th", "type", "image",
+    "http", "https", "url", "uri", "ftp", "www",
+    "paragraph", "footer", "header", "element",
+})
+
+
+def is_technical_noise(term: str) -> bool:
+    """Filter obvious technical noise from user-facing semantic keywords.
+
+    Filters:
+    - DOM / XPath locators: starts with /html, contains brackets like [0]
+    - URL paths / endpoints: starts with /, http://, https://, or contains #
+    - Technical assets & filenames: ends with .css, .js, .ico, .png, etc.
+    - HTML/CSS attribute artifacts: e.g. 'stylesheet', 'rel:', 'href:'
+    """
+    if not term:
+        return True
+    s = term.strip().lower()
+
+    # 1. DOM paths or XPath locators
+    if s.startswith("/html") or "body[" in s or "div[" in s or "p[" in s:
+        return True
+
+    # 2. URLs, URIs, query strings, and path fragments
+    if (
+        s.startswith(("http://", "https://", "ftp://", "/", "#", "//"))
+        or s.endswith(("/", "\\"))
+        or "/" in s
+        or "\\" in s
+    ):
+        return True
+    if re.search(r"https?://", s):
+        return True
+
+    # 3. File extensions (assets, stylesheets, images, scripts)
+    for ext in _TECHNICAL_EXTENSIONS:
+        if s.endswith(ext) or (ext + " ") in s:
+            return True
+
+    # 4. Attribute syntax or artifacts
+    if "href:" in s or "rel:" in s or "type:" in s:
+        return True
+
+    # 5. Hexadecimal hashes / asset fingerprints / cache busters (e.g. 68dd615b61e5)
+    if re.match(r"^[0-9a-f]{7,}$", s) and any(c.isdigit() for c in s):
+        return True
+
+    # 6. Standalone technical terms or HTML attribute artifacts
+    cleaned_tokens = re.findall(r"\b[a-z0-9_-]+\b", s)
+    if not cleaned_tokens:
+        return True
+    if all(tok in _TECHNICAL_TERMS or tok.isdigit() for tok in cleaned_tokens):
+        return True
+
+    # 7. Check if term (or stripped of punctuation) is a stopword
+    stripped_word = s.strip("/\\-_.")
+    if stripped_word in DEFAULT_STOP_WORDS:
+        return True
+
+    return False
+
 
 def extract_keywords_fallback(
     text: str,
@@ -63,6 +132,8 @@ def extract_keywords_fallback(
         if len(lower_word) < min_length:
             continue
         if lower_word in stop_words:
+            continue
+        if is_technical_noise(clean_word):
             continue
         if lower_word.isdigit():
             # Keep numbers if 4 digits (e.g. years like 2026) or meaningful
@@ -113,7 +184,7 @@ def extract_keywords(
                     ]
                     if chunk_tokens:
                         filtered_chunk = " ".join(chunk_tokens)
-                        if filtered_chunk.lower() not in seen:
+                        if not is_technical_noise(filtered_chunk) and filtered_chunk.lower() not in seen:
                             seen.add(filtered_chunk.lower())
                             keywords.append(filtered_chunk)
 
@@ -123,6 +194,7 @@ def extract_keywords(
                 if (
                     not token.is_stop
                     and lower not in stop_words
+                    and not is_technical_noise(token.text)
                     and not token.is_punct
                     and not token.is_space
                     and len(token.text) >= min_length

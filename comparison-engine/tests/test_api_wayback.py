@@ -27,9 +27,9 @@ Tests:
    - Temporary directory cleanup on success and failure.
    - NLP failure safe fallback preservation.
 
-3. Regressions:
+3. Regressions & Endpoint Retirement:
    - Baseline file upload POST /api/compare.
-   - Live URL comparison POST /api/compare-urls.
+   - Retirement verification for POST /api/compare-urls (returns 404).
 """
 
 from __future__ import annotations
@@ -376,6 +376,20 @@ def test_api_wayback_compare_success_and_labels():
                 expected_label2 = "http://example.com/ (20220120142510 - Jan 20, 2022 14:25 UTC)"
                 assert data["version1"]["label"] == expected_label1
                 assert data["version2"]["label"] == expected_label2
+                assert data["version1"]["timestamp"] == "20020120142510"
+                assert data["version1"]["displayDate"] == "Jan 20, 2002 14:25 UTC"
+                assert data["version2"]["timestamp"] == "20220120142510"
+                assert data["version2"]["displayDate"] == "Jan 20, 2022 14:25 UTC"
+
+                # Verify exact snapshot verification context and replay URLs
+                assert "waybackContext" in data
+                assert data["waybackContext"]["targetUrl"] == "https://example.com"
+                assert data["waybackContext"]["version1"]["timestamp"] == "20020120142510"
+                assert data["waybackContext"]["version2"]["timestamp"] == "20220120142510"
+                assert data["waybackContext"]["version1"]["replayUrl"].startswith("https://web.archive.org/web/20020120142510/")
+                assert data["waybackContext"]["version2"]["replayUrl"].startswith("https://web.archive.org/web/20220120142510/")
+                assert data["waybackContext"]["version1"]["rawReplayUrl"].startswith("https://web.archive.org/web/20020120142510id_/")
+                assert data["waybackContext"]["version2"]["rawReplayUrl"].startswith("https://web.archive.org/web/20220120142510id_/")
 
                 # Verify structural engine results match test files
                 assert data["presentationSummary"]["total"] == 21
@@ -801,40 +815,16 @@ def test_regression_existing_upload_compare():
     asyncio.run(_test())
 
 
-def test_regression_existing_live_compare_urls():
-    """Verify existing live URL comparison POST /api/compare-urls continues to work."""
+def test_compare_urls_endpoint_is_retired():
+    """Verify that the retired two-URL endpoint POST /api/compare-urls is no longer exposed (returns 404)."""
     async def _test():
-        res1 = SafeFetchResult(
-            url="https://example.com/live-v1",
-            status_code=200,
-            headers={"content-type": "text/html; charset=utf-8"},
-            content=V1_FILE.read_bytes(),
-            redirect_history=[],
-        )
-        res2 = SafeFetchResult(
-            url="https://example.com/live-v2",
-            status_code=200,
-            headers={"content-type": "text/html; charset=utf-8"},
-            content=V2_FILE.read_bytes(),
-            redirect_history=[],
-        )
-
-        with patch("live_compare.safe_fetch_async", new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.side_effect = [res1, res2]
-
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.post(
-                    "/api/compare-urls",
-                    json={"url1": "https://example.com/live-v1", "url2": "https://example.com/live-v2"},
-                )
-                assert resp.status_code == 200
-                data = resp.json()
-
-                assert data["presentationSummary"]["total"] == 21
-                assert data["version1"]["label"] == "https://example.com/live-v1"
-                assert data["version2"]["label"] == "https://example.com/live-v2"
-                assert "nlpAnalysis" in data
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/compare-urls",
+                json={"url1": "https://example.com/live-v1", "url2": "https://example.com/live-v2"},
+            )
+            assert resp.status_code == 404
 
     asyncio.run(_test())
 

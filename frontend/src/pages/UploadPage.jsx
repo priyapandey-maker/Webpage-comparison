@@ -57,18 +57,12 @@ function validateYearInput(yearStr, label = 'Year') {
   return { isValid: true, year: num, error: '' };
 }
 
-export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, onCompareWayback }) {
-  const [mode, setMode] = useState('files'); // 'files' | 'urls' | 'wayback'
+export default function UploadPage({ onCompare, onCompareFiles, onCompareWayback }) {
+  const [mode, setMode] = useState('files'); // 'files' | 'wayback'
 
   // File mode states
   const [version1File, setVersion1File] = useState(null);
   const [version2File, setVersion2File] = useState(null);
-
-  // URL mode states
-  const [url1, setUrl1] = useState('');
-  const [url2, setUrl2] = useState('');
-  const [url1Error, setUrl1Error] = useState('');
-  const [url2Error, setUrl2Error] = useState('');
 
   // Wayback mode states
   const [waybackUrl, setWaybackUrl] = useState('');
@@ -127,18 +121,6 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
     if (isLoading || isSubmittingRef.current || isDiscovering) return;
     setMode(nextMode);
     setError('');
-  }
-
-  function handleUrl1Change(value) {
-    setUrl1(value);
-    if (url1Error) setUrl1Error('');
-    if (error) setError('');
-  }
-
-  function handleUrl2Change(value) {
-    setUrl2(value);
-    if (url2Error) setUrl2Error('');
-    if (error) setError('');
   }
 
   function handleWaybackUrlChange(value) {
@@ -301,31 +283,6 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
         isSubmittingRef.current = false;
         setIsLoading(false);
       }
-    } else if (mode === 'urls') {
-      const v1Result = validateUrlInput(url1);
-      const v2Result = validateUrlInput(url2);
-
-      setUrl1Error(v1Result.error);
-      setUrl2Error(v2Result.error);
-
-      if (!v1Result.isValid || !v2Result.isValid) {
-        setError('Please provide valid HTTP/HTTPS URLs for both webpages.');
-        return;
-      }
-
-      isSubmittingRef.current = true;
-      setIsLoading(true);
-      try {
-        const handler = onCompareUrls || onCompare;
-        if (handler) {
-          await handler(v1Result.url, v2Result.url);
-        }
-      } catch (comparisonError) {
-        setError(comparisonError.message || 'Failed to compare live URLs. Please check the addresses and try again.');
-      } finally {
-        isSubmittingRef.current = false;
-        setIsLoading(false);
-      }
     } else if (mode === 'wayback') {
       const currentNormalizedUrl = waybackUrl.trim();
       const currentNormalizedFrom = String(fromYear || '').trim();
@@ -393,7 +350,6 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
   );
 
   const isFileReady = Boolean(version1File && version2File);
-  const isUrlReady = Boolean(url1.trim() && url2.trim());
   const isWaybackReady = Boolean(
     isWaybackParamsMatch &&
     discoveredSnapshots.length >= 2 &&
@@ -405,8 +361,6 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
   let isSubmitDisabled = false;
   if (mode === 'files') {
     isSubmitDisabled = !isFileReady || isLoading;
-  } else if (mode === 'urls') {
-    isSubmitDisabled = !isUrlReady || isLoading;
   } else if (mode === 'wayback') {
     isSubmitDisabled = !isWaybackReady || isLoading || isDiscovering;
   }
@@ -417,7 +371,7 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
         <header className="upload-header">
           <div className="eyebrow">Webpage analysis tool</div>
           <h1>Historical Webpage Comparison</h1>
-          <p>Compare two versions of a webpage to understand what changed.</p>
+          <p>Compare two versions of the same webpage to understand what changed.</p>
         </header>
 
         <form className="upload-panel" onSubmit={handleSubmit}>
@@ -437,18 +391,6 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
             <button
               type="button"
               role="tab"
-              aria-selected={mode === 'urls'}
-              aria-controls="mode-panel-urls"
-              id="mode-tab-urls"
-              className={`mode-tab-button${mode === 'urls' ? ' is-active' : ''}`}
-              onClick={() => handleModeChange('urls')}
-              disabled={isLoading || isDiscovering}
-            >
-              Compare Live URLs
-            </button>
-            <button
-              type="button"
-              role="tab"
               aria-selected={mode === 'wayback'}
               aria-controls="mode-panel-wayback"
               id="mode-tab-wayback"
@@ -464,16 +406,13 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
             <div>
               <span className="section-number">01</span>
               <h2>
-                {mode === 'files' && 'Select webpage versions'}
-                {mode === 'urls' && 'Enter webpage URLs'}
-                {mode === 'wayback' && 'Explore & compare archived versions'}
+                {mode === 'files' && 'Select HTML webpage versions'}
+                {mode === 'wayback' && 'Explore & compare archived versions of a webpage'}
               </h2>
             </div>
             <p>
               {mode === 'files' &&
-                'Choose the older webpage first, followed by the newer version. Both files will be compared to identify structural and content changes.'}
-              {mode === 'urls' &&
-                'Enter the baseline webpage URL first, followed by the newer version. Both pages will be securely fetched and compared.'}
+                'Choose two HTML files representing different versions of the same webpage to identify structural and content changes.'}
               {mode === 'wayback' &&
                 'Search the Internet Archive Wayback Machine for historical captures of any webpage, then pick two distinct dates to compare.'}
             </p>
@@ -510,87 +449,7 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
             </div>
           )}
 
-          {/* Mode 2: Live URLs Panel */}
-          {mode === 'urls' && (
-            <div
-              id="mode-panel-urls"
-              role="tabpanel"
-              aria-labelledby="mode-tab-urls"
-              className="upload-grid"
-            >
-              <section className="upload-column" aria-labelledby="url-1-heading">
-                <div className="upload-column-heading">
-                  <span>Version 1</span>
-                  <h2 id="url-1-heading">Older webpage URL</h2>
-                </div>
-                <div className="url-card">
-                  <label htmlFor="url-1-input" className="url-input-label">
-                    Baseline webpage address
-                  </label>
-                  <input
-                    id="url-1-input"
-                    type="url"
-                    inputMode="url"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck="false"
-                    className={`url-input${url1Error ? ' has-error' : ''}`}
-                    placeholder="https://example.com/v1"
-                    value={url1}
-                    onChange={(e) => handleUrl1Change(e.target.value)}
-                    disabled={isLoading}
-                    aria-describedby={`url-1-help${url1Error ? ' url-1-error' : ''}`}
-                    aria-invalid={Boolean(url1Error)}
-                  />
-                  <span id="url-1-help" className="url-help-text">
-                    Must be a publicly accessible HTTP or HTTPS URL.
-                  </span>
-                  {url1Error && (
-                    <p id="url-1-error" className="file-error url-field-error" role="alert">
-                      {url1Error}
-                    </p>
-                  )}
-                </div>
-              </section>
-
-              <section className="upload-column" aria-labelledby="url-2-heading">
-                <div className="upload-column-heading">
-                  <span>Version 2</span>
-                  <h2 id="url-2-heading">Newer webpage URL</h2>
-                </div>
-                <div className="url-card">
-                  <label htmlFor="url-2-input" className="url-input-label">
-                    Newer webpage address
-                  </label>
-                  <input
-                    id="url-2-input"
-                    type="url"
-                    inputMode="url"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck="false"
-                    className={`url-input${url2Error ? ' has-error' : ''}`}
-                    placeholder="https://example.com/v2"
-                    value={url2}
-                    onChange={(e) => handleUrl2Change(e.target.value)}
-                    disabled={isLoading}
-                    aria-describedby={`url-2-help${url2Error ? ' url-2-error' : ''}`}
-                    aria-invalid={Boolean(url2Error)}
-                  />
-                  <span id="url-2-help" className="url-help-text">
-                    Must be a publicly accessible HTTP or HTTPS URL.
-                  </span>
-                  {url2Error && (
-                    <p id="url-2-error" className="file-error url-field-error" role="alert">
-                      {url2Error}
-                    </p>
-                  )}
-                </div>
-              </section>
-            </div>
-          )}
-
-          {/* Mode 3: Wayback Historical Comparison Panel */}
+          {/* Mode 2: Wayback Historical Comparison Panel */}
           {mode === 'wayback' && (
             <div
               id="mode-panel-wayback"
@@ -793,6 +652,17 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
                                     {selectedSnap1.original_url}
                                   </span>
                                 </div>
+                                <div className="wayback-preview-row wayback-preview-action-row">
+                                  <a
+                                    href={`https://web.archive.org/web/${selectedSnap1.timestamp}/${selectedSnap1.original_url}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="wayback-preview-ext-link"
+                                    title="Inspect baseline capture on web.archive.org in a new tab"
+                                  >
+                                    Inspect capture in new tab ↗
+                                  </a>
+                                </div>
                               </div>
                             ) : (
                               <p className="url-help-text" id="snap-1-meta">
@@ -852,6 +722,17 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
                                     {selectedSnap2.original_url}
                                   </span>
                                 </div>
+                                <div className="wayback-preview-row wayback-preview-action-row">
+                                  <a
+                                    href={`https://web.archive.org/web/${selectedSnap2.timestamp}/${selectedSnap2.original_url}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="wayback-preview-ext-link"
+                                    title="Inspect comparison capture on web.archive.org in a new tab"
+                                  >
+                                    Inspect capture in new tab ↗
+                                  </a>
+                                </div>
                               </div>
                             ) : (
                               <p className="url-help-text" id="snap-2-meta">
@@ -892,25 +773,19 @@ export default function UploadPage({ onCompare, onCompareFiles, onCompareUrls, o
               {isLoading && (
                 mode === 'files'
                   ? 'Preparing comparison results...'
-                  : mode === 'urls'
-                    ? 'Fetching and comparing webpages...'
-                    : 'Retrieving archived captures & comparing...'
+                  : 'Retrieving archived captures & comparing...'
               )}
               {!isLoading && (
                 mode === 'files'
                   ? 'Compare Versions'
-                  : mode === 'urls'
-                    ? 'Compare Live URLs'
-                    : 'Compare Historical Versions'
+                  : 'Compare Historical Versions'
               )}
             </button>
             <span className="loading-status" role="status" aria-live="polite">
               {isLoading && (
                 mode === 'files'
                   ? 'Preparing comparison results...'
-                  : mode === 'urls'
-                    ? 'Fetching and comparing live webpages...'
-                    : 'Retrieving raw captures from Wayback Machine and executing comparison engine...'
+                  : 'Retrieving raw captures from Wayback Machine and executing comparison engine...'
               )}
             </span>
           </div>

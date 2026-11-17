@@ -1,4 +1,5 @@
 import { getChangeSummary, getChangeTitle } from '../utils/summary';
+import { generateIndividualExplanation } from '../utils/generateSummary';
 
 function splitStructuredValue(value) {
   if (Array.isArray(value)) {
@@ -90,9 +91,7 @@ export default function ChangeCard({ change, index }) {
     : 'modified';
   const isList = change.type === 'list';
   const isSection = change.type === 'section';
-  const supplementalDescription = isGenericDescription(change, summary)
-    ? null
-    : change.description;
+  const explanation = generateIndividualExplanation(change);
 
   return (
     <article className={`change-card change-${category}`}>
@@ -108,14 +107,14 @@ export default function ChangeCard({ change, index }) {
         {category === 'modified' && (change.oldValue != null || change.newValue != null) && (
           <div className="value-comparison">
             <ValueBlock
-              label="Before"
+              label="Before (older version)"
               value={change.oldValue}
               tone="before"
               renderAsList={isList}
             />
             <span className="inline-arrow" aria-hidden="true">→</span>
             <ValueBlock
-              label="After"
+              label="After (newer version)"
               value={change.newValue}
               tone="after"
               renderAsList={isList}
@@ -123,24 +122,43 @@ export default function ChangeCard({ change, index }) {
           </div>
         )}
 
-        {category === 'added' && isSection && (
-          <SectionValue value={change.newValue} tone="after" />
+        {category === 'added' && (
+          <div className="single-value-wrap">
+            {isSection ? (
+              <SectionValue value={change.newValue} tone="after" />
+            ) : (
+              <ValueBlock
+                label="New content (after)"
+                value={change.newValue}
+                tone="after"
+                renderAsList={isList}
+                compact
+              />
+            )}
+          </div>
         )}
 
-        {category === 'removed' && isSection && (
-          <SectionValue value={change.oldValue} tone="before" />
+        {category === 'removed' && (
+          <div className="single-value-wrap">
+            {isSection ? (
+              <SectionValue value={change.oldValue} tone="before" />
+            ) : (
+              <ValueBlock
+                label="Original content (before)"
+                value={change.oldValue}
+                tone="before"
+                renderAsList={isList}
+                compact
+              />
+            )}
+          </div>
         )}
 
-        {category === 'added' && !isSection && (
-          <ValueBlock value={change.newValue} tone="after" renderAsList={isList} compact />
-        )}
-
-        {category === 'removed' && !isSection && (
-          <ValueBlock value={change.oldValue} tone="before" renderAsList={isList} compact />
-        )}
-
-        {supplementalDescription && (
-          <p className="change-description">{supplementalDescription}</p>
+        {explanation && (
+          <div className="change-explanation-box">
+            <span className="explanation-label">Explanation:</span>
+            <p className="explanation-text">{explanation}</p>
+          </div>
         )}
       </div>
     </article>

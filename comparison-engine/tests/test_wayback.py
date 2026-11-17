@@ -23,7 +23,7 @@ import asyncio
 import json
 from pathlib import Path
 import sys
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import urllib.parse
 
 import httpx
@@ -1083,3 +1083,74 @@ def test_compare_request_validation():
             timestamp1="20021399142510",
             timestamp2="20220120142510",
         )
+
+
+# ============================================================================
+# 9. Strict Overall Deadline & Response Cleanup Tests
+# ============================================================================
+
+def test_wayback_fetcher_stalled_response_cancelled_by_deadline_and_closed():
+    """Verify that a stalled streaming response in safe_fetch_wayback_async is cancelled
+    when the overall deadline expires and that the response is closed after cancellation."""
+    async def _test():
+        async def mock_aiter():
+            yield b"<html>"
+            await asyncio.sleep(5)
+            yield b"</html>"
+
+        mock_resp = MagicMock(spec=httpx.Response)
+        mock_resp.status_code = 200
+        mock_resp.headers = {"content-type": "text/html"}
+        mock_resp.aiter_bytes = mock_aiter
+        mock_resp.aclose = AsyncMock()
+
+        with patch.object(httpx.AsyncClient, "send", return_value=mock_resp):
+            with pytest.raises(ResourceLimitError, match="deadline"):
+                await safe_fetch_wayback_async(
+                    "https://web.archive.org/web/20200101000000id_/https://example.com",
+                    total_deadline=0.25,
+                )
+            assert mock_resp.aclose.called, "Active Wayback response was not closed after deadline expiration"
+
+    asyncio.run(_test())
+
+
+def test_wayback_fetcher_overall_deadline_applies_across_multiple_redirect_hops():
+    """Verify that the strict overall deadline in safe_fetch_wayback_async applies
+    cumulatively across multiple redirect hops on web.archive.org."""
+    async def _test():
+        resp1 = MagicMock(spec=httpx.Response)
+        resp1.status_code = 302
+        resp1.headers = {
+            "location": "https://web.archive.org/web/20200101000000id_/https://example.com/hop2"
+        }
+        resp1.aclose = AsyncMock()
+
+        resp2 = MagicMock(spec=httpx.Response)
+        resp2.status_code = 200
+        resp2.headers = {"content-type": "text/html"}
+        async def slow_aiter():
+            yield b"<html>"
+            await asyncio.sleep(5)
+        resp2.aiter_bytes = slow_aiter
+        resp2.aclose = AsyncMock()
+
+        call_count = 0
+        async def mock_send(request, *args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                await asyncio.sleep(0.1)
+                return resp1
+            return resp2
+
+        with patch.object(httpx.AsyncClient, "send", side_effect=mock_send):
+            with pytest.raises(ResourceLimitError, match="deadline"):
+                await safe_fetch_wayback_async(
+                    "https://web.archive.org/web/20200101000000id_/https://example.com/hop1",
+                    total_deadline=0.25,
+                )
+            assert resp1.aclose.called, "Hop 1 response was not closed"
+            assert resp2.aclose.called, "Hop 2 response was not closed"
+
+    asyncio.run(_test())

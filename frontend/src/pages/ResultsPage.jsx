@@ -3,6 +3,7 @@ import ComparisonHeader from '../components/ComparisonHeader';
 import ChangeSummary from '../components/ChangeSummary';
 import ChangeFilters from '../components/ChangeFilters';
 import ChangeCard from '../components/ChangeCard';
+import AiSummaryPanel from '../components/AiSummaryPanel';
 import NlpSummaryPanel from '../components/NlpSummaryPanel';
 import HistoricalSnapshotViewer from '../components/HistoricalSnapshotViewer';
 import { calculateChangeCounts } from '../utils/summary';
@@ -13,10 +14,12 @@ export default function ResultsPage({ comparison, onCompareAnother }) {
 
   const changes = Array.isArray(comparison?.changes) ? comparison.changes : [];
   const hasWayback = Boolean(comparison?.waybackContext || comparison?.version1?.replayUrl || comparison?.version2?.replayUrl);
+  const hasAiSummary = Boolean(comparison?.aiSummary && typeof comparison.aiSummary === 'object' && comparison.aiSummary.executive_summary);
   const hasNlp = Boolean(comparison?.nlpAnalysis);
 
   let sectionCounter = 2;
   const waybackSectionNum = hasWayback ? `0${sectionCounter++}` : null;
+  const aiSectionNum = hasAiSummary ? `0${sectionCounter++}` : null;
   const nlpSectionNum = hasNlp ? `0${sectionCounter++}` : null;
   const changesSectionNum = `0${sectionCounter}`;
 
@@ -58,6 +61,13 @@ export default function ResultsPage({ comparison, onCompareAnother }) {
           <HistoricalSnapshotViewer
             waybackContext={waybackContext}
             sectionNumber={waybackSectionNum}
+          />
+        )}
+
+        {hasAiSummary && (
+          <AiSummaryPanel
+            aiSummary={comparison.aiSummary}
+            sectionNumber={aiSectionNum}
           />
         )}
 

@@ -94,7 +94,7 @@ export default function ChangeCard({ change, index }) {
   const explanation = generateIndividualExplanation(change);
 
   return (
-    <article className={`change-card change-${category}`}>
+    <article id={`change-${change.id}`} className={`change-card change-${category}`}>
       <div className="change-card-top">
         <span className="change-index">{String(index + 1).padStart(2, '0')}</span>
         <span className={`category-badge badge-${category}`}>{category}</span>

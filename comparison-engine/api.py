@@ -27,6 +27,7 @@ from result_adapter import adapt_engine_result
 
 from html_validator import HTMLValidationError
 from nlp.pipeline import attach_nlp_analysis
+from ai import generate_ai_summary
 from security.ssrf_validator import (
     BlockedIPError,
     DNSResolutionError,
@@ -154,10 +155,18 @@ async def compare(
             )
             try:
                 enriched = attach_nlp_analysis(adapted)
-                return enriched
             except Exception as err:
                 logger.warning("NLP enrichment failed safely on file compare: %s", err)
-                return adapted
+                enriched = adapted
+
+            # Enrich with local LLM AI explanation layer
+            try:
+                enriched["aiSummary"] = await generate_ai_summary(enriched)
+            except Exception as err:
+                logger.warning("AI summary generation failed safely on file compare: %s", err)
+                enriched["aiSummary"] = None
+
+            return enriched
     except HTTPException:
         raise
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
@@ -269,7 +278,7 @@ async def compare_wayback_snapshots(payload: WaybackComparePayload):
             req.timestamp1,
             req.timestamp2,
         )
-        res1, res2 = await fetch_wayback_raw_pair(snap1, snap2)
+        res1, res2 = await fetch_wayback_raw_pair(snap1, snap2, total_deadline=30.0)
     except SnapshotNotFoundError as err:
         raise HTTPException(status_code=404, detail=f"Snapshot not found: {err}")
     except FallbackRedirectError as err:
@@ -377,9 +386,18 @@ async def compare_wayback_snapshots(payload: WaybackComparePayload):
             # Enrich with NLP semantic analysis layer
             try:
                 enriched = attach_nlp_analysis(adapted)
-                return enriched
-            except Exception:
-                return adapted
+            except Exception as err:
+                logger.warning("NLP enrichment failed safely on wayback compare: %s", err)
+                enriched = adapted
+
+            # Enrich with local LLM AI explanation layer
+            try:
+                enriched["aiSummary"] = await generate_ai_summary(enriched)
+            except Exception as err:
+                logger.warning("AI summary generation failed safely on wayback compare: %s", err)
+                enriched["aiSummary"] = None
+
+            return enriched
     except HTTPException:
         raise
     except ValueError as err:

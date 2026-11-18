@@ -509,7 +509,7 @@ async def safe_fetch_wayback_async(
                     hop_timeout = httpx.Timeout(
                         timeout=remaining_time,
                         connect=min(5.0, remaining_time),
-                        read=min(12.0, remaining_time),
+                        read=min(25.0, remaining_time),
                     )
 
                     request = client.build_request(

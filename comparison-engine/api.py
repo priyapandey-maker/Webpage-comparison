@@ -161,10 +161,19 @@ async def compare(
 
             # Enrich with local LLM AI explanation layer
             try:
-                enriched["aiSummary"] = await generate_ai_summary(enriched)
+                ai_res = await generate_ai_summary(enriched, return_status=True)
+                if isinstance(ai_res, tuple) and len(ai_res) == 2:
+                    enriched["aiSummary"], enriched["aiStatus"] = ai_res
+                elif isinstance(ai_res, dict):
+                    enriched["aiSummary"] = ai_res
+                    enriched["aiStatus"] = "generated"
+                else:
+                    enriched["aiSummary"] = None
+                    enriched["aiStatus"] = "unavailable"
             except Exception as err:
                 logger.warning("AI summary generation failed safely on file compare: %s", err)
                 enriched["aiSummary"] = None
+                enriched["aiStatus"] = "unavailable"
 
             return enriched
     except HTTPException:
@@ -392,10 +401,19 @@ async def compare_wayback_snapshots(payload: WaybackComparePayload):
 
             # Enrich with local LLM AI explanation layer
             try:
-                enriched["aiSummary"] = await generate_ai_summary(enriched)
+                ai_res = await generate_ai_summary(enriched, return_status=True)
+                if isinstance(ai_res, tuple) and len(ai_res) == 2:
+                    enriched["aiSummary"], enriched["aiStatus"] = ai_res
+                elif isinstance(ai_res, dict):
+                    enriched["aiSummary"] = ai_res
+                    enriched["aiStatus"] = "generated"
+                else:
+                    enriched["aiSummary"] = None
+                    enriched["aiStatus"] = "unavailable"
             except Exception as err:
                 logger.warning("AI summary generation failed safely on wayback compare: %s", err)
                 enriched["aiSummary"] = None
+                enriched["aiStatus"] = "unavailable"
 
             return enriched
     except HTTPException:

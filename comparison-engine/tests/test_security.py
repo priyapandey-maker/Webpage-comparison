@@ -1221,6 +1221,35 @@ def test_httpx_and_httpcore_versions_and_internal_apis():
     assert isinstance(sync_transport._pool._network_backend, PinnedSyncNetworkBackend)
 
 
+def test_safe_fetch_async_read_timeout_ceiling_is_25s():
+    """Verify that safe_fetch_async sets the per-hop read timeout ceiling to 25s
+    when overall deadline allows it."""
+    async def _test():
+        captured_timeout = None
+        mock_resp = MagicMock(spec=httpx.Response)
+        mock_resp.status_code = 200
+        mock_resp.headers = {"content-type": "text/html"}
+        async def mock_aiter():
+            yield b"<html><body>content</body></html>"
+        mock_resp.aiter_bytes = mock_aiter
+        mock_resp.aclose = AsyncMock()
+
+        async def mock_send(request, *args, **kwargs):
+            nonlocal captured_timeout
+            captured_timeout = request.extensions.get("timeout", {})
+            return mock_resp
+
+        with patch.object(httpx.AsyncClient, "send", side_effect=mock_send):
+            result = await safe_fetch_async("https://example.com", total_deadline=30.0)
+            assert result.status_code == 200
+            assert captured_timeout is not None
+            assert captured_timeout.get("read") == 25.0
+            assert captured_timeout.get("connect") == 5.0
+
+    asyncio.run(_test())
+
+
+
 # =====================================================================
 # 11. Real Network Integration Test (Verified against example.com)
 # =====================================================================

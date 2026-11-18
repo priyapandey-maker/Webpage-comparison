@@ -140,7 +140,6 @@ def test_cdx_parse_normal():
 
     asyncio.run(_test())
 
-
 def test_cdx_parse_empty():
     """Verify empty string or '[]' response returns 0 snapshots without error."""
     async def _test():
@@ -158,7 +157,6 @@ def test_cdx_parse_empty():
             assert resp.snapshots == []
 
     asyncio.run(_test())
-
 
 def test_cdx_parse_header_only():
     """Verify CDX response with only the header row returns 0 snapshots."""
@@ -178,7 +176,6 @@ def test_cdx_parse_header_only():
 
     asyncio.run(_test())
 
-
 def test_cdx_parse_malformed_json():
     """Verify non-JSON CDX response raises WaybackCDXError."""
     async def _test():
@@ -193,7 +190,6 @@ def test_cdx_parse_malformed_json():
             await discover_wayback_snapshots(req, fetcher=mock_fetcher)
 
     asyncio.run(_test())
-
 
 def test_cdx_parse_missing_columns():
     """Verify CDX header missing required column raises WaybackCDXError."""
@@ -213,7 +209,6 @@ def test_cdx_parse_missing_columns():
             await discover_wayback_snapshots(req, fetcher=mock_fetcher)
 
     asyncio.run(_test())
-
 
 def test_cdx_parse_invalid_timestamp():
     """Verify rows with invalid or malformed timestamps are filtered out."""
@@ -237,7 +232,6 @@ def test_cdx_parse_invalid_timestamp():
 
     asyncio.run(_test())
 
-
 def test_cdx_parse_non_200_and_non_html():
     """Verify non-200 or non-HTML rows returned by CDX are filtered out."""
     async def _test():
@@ -260,7 +254,6 @@ def test_cdx_parse_non_200_and_non_html():
         assert resp.snapshots[0].timestamp == "20050120142510"
 
     asyncio.run(_test())
-
 
 # ============================================================================
 # 2. Discovery Ordering, Limits & Valid Row Truncation (Correction 4)
@@ -294,7 +287,6 @@ def test_discovery_query_parameters():
 
     asyncio.run(_test())
 
-
 def test_discovery_51_valid_rows_is_limited_true():
     """Correction 4: 51 valid rows returns 50, is_limited=True."""
     async def _test():
@@ -322,7 +314,6 @@ def test_discovery_51_valid_rows_is_limited_true():
 
     asyncio.run(_test())
 
-
 def test_discovery_50_valid_rows_is_limited_false():
     """Correction 4: 50 valid rows returns 50, is_limited=False."""
     async def _test():
@@ -347,7 +338,6 @@ def test_discovery_50_valid_rows_is_limited_false():
         assert resp.is_limited is False
 
     asyncio.run(_test())
-
 
 def test_discovery_51_raw_rows_with_invalid_entries_is_limited_false():
     """Correction 4: 51 raw rows with invalid entries resulting in < 51 valid snapshots yields is_limited=False."""
@@ -378,7 +368,6 @@ def test_discovery_51_raw_rows_with_invalid_entries_is_limited_false():
 
     asyncio.run(_test())
 
-
 def test_discovery_invalid_51st_raw_row_is_limited_false():
     """Correction 4: 50 valid rows followed by an invalid 51st row yields is_limited=False."""
     async def _test():
@@ -406,7 +395,6 @@ def test_discovery_invalid_51st_raw_row_is_limited_false():
 
     asyncio.run(_test())
 
-
 def test_discovery_invalid_rows_before_valid_rows_preserved():
     """Correction 4: Invalid rows occurring before valid rows do not discard valid snapshots."""
     async def _test():
@@ -431,7 +419,6 @@ def test_discovery_invalid_rows_before_valid_rows_preserved():
         assert [s.timestamp for s in resp.snapshots] == ["20010101120000", "20030101120000"]
 
     asyncio.run(_test())
-
 
 # ============================================================================
 # 3. Capture Verification Tests
@@ -471,7 +458,6 @@ def test_verify_snapshots_success():
 
     asyncio.run(_test())
 
-
 def test_verify_snapshot_not_found():
     """Verify that absent timestamp in CDX raises SnapshotNotFoundError."""
     async def _test():
@@ -486,7 +472,6 @@ def test_verify_snapshot_not_found():
             await verify_snapshot_timestamp("https://example.com", "20020120142510", fetcher=mock_fetcher)
 
     asyncio.run(_test())
-
 
 def test_verify_snapshot_timestamp_mismatch():
     """Verify that CDX returning a different timestamp than requested raises SnapshotNotFoundError."""
@@ -507,7 +492,6 @@ def test_verify_snapshot_timestamp_mismatch():
 
     asyncio.run(_test())
 
-
 def test_verify_snapshot_non_200():
     """Verify that CDX capture with non-200 status raises WaybackVerificationError."""
     async def _test():
@@ -526,7 +510,6 @@ def test_verify_snapshot_non_200():
             await verify_snapshot_timestamp("https://example.com", "20020120142510", fetcher=mock_fetcher)
 
     asyncio.run(_test())
-
 
 def test_verify_snapshot_non_html():
     """Verify that CDX capture with non-HTML MIME raises WaybackVerificationError."""
@@ -547,7 +530,6 @@ def test_verify_snapshot_non_html():
 
     asyncio.run(_test())
 
-
 def test_verify_identical_timestamps_rejected():
     """Verify that comparing identical timestamps raises ValueError."""
     async def _test():
@@ -559,7 +541,6 @@ def test_verify_identical_timestamps_rejected():
             )
 
     asyncio.run(_test())
-
 
 # ============================================================================
 # 4. Strict Hostname Allowlist & Port Restriction Tests
@@ -708,7 +689,6 @@ def test_replay_deceptive_url_rejected_by_fetch():
 
     asyncio.run(_test())
 
-
 # ============================================================================
 # 6. Concurrency & Task Cancellation Tests (Correction 3)
 # ============================================================================
@@ -755,7 +735,6 @@ def test_fetch_pair_snapshot1_fails_cancels_snapshot2():
 
     asyncio.run(_test())
 
-
 def test_fetch_pair_snapshot2_fails_cancels_snapshot1():
     """Correction 3: When snapshot 2 fails immediately, snapshot 1 is cancelled and awaited."""
     async def _test():
@@ -798,7 +777,6 @@ def test_fetch_pair_snapshot2_fails_cancels_snapshot1():
 
     asyncio.run(_test())
 
-
 def test_verify_snapshots_cancellation_on_failure():
     """Correction 3: In verify_and_resolve_snapshots, if one verification fails, sibling is cancelled."""
     async def _test():
@@ -827,7 +805,6 @@ def test_verify_snapshots_cancellation_on_failure():
         assert task2_was_cancelled is True, "Sibling verification task should have been cancelled!"
 
     asyncio.run(_test())
-
 
 # ============================================================================
 # 7. Replay URL Construction & Retrieval Tests
@@ -884,7 +861,6 @@ def test_replay_exact_timestamp_accepted():
 
     asyncio.run(_test())
 
-
 def test_replay_fallback_redirect_rejected():
     """Verify that Wayback replay redirecting to a nearest fallback timestamp is rejected."""
     async def _test():
@@ -908,7 +884,6 @@ def test_replay_fallback_redirect_rejected():
             await fetch_single_wayback_capture(snapshot, fetcher=mock_fetcher)
 
     asyncio.run(_test())
-
 
 def test_replay_off_host_redirect_rejected_before_request():
     """Verify that a redirect targeting an unauthorized off-host domain raises OffHostRedirectError
@@ -934,7 +909,6 @@ def test_replay_off_host_redirect_rejected_before_request():
 
     asyncio.run(_test())
 
-
 def test_replay_non_html_rejected():
     """Verify that replay returning non-HTML MIME or binary data raises WaybackContentError."""
     async def _test():
@@ -959,7 +933,6 @@ def test_replay_non_html_rejected():
 
     asyncio.run(_test())
 
-
 def test_replay_empty_content_rejected():
     """Verify that replay returning 0 bytes raises WaybackContentError."""
     async def _test():
@@ -982,7 +955,6 @@ def test_replay_empty_content_rejected():
             await fetch_single_wayback_capture(snapshot, fetcher=mock_fetcher)
 
     asyncio.run(_test())
-
 
 def test_fetch_wayback_raw_pair_success():
     """Verify concurrent retrieval of both snapshots preserves raw bytes."""
@@ -1014,7 +986,6 @@ def test_fetch_wayback_raw_pair_success():
         assert res2.content == VALID_HTML_BYTES_V2
 
     asyncio.run(_test())
-
 
 # ============================================================================
 # 8. Pydantic Models & Input Validation Tests
@@ -1114,7 +1085,6 @@ def test_wayback_fetcher_stalled_response_cancelled_by_deadline_and_closed():
 
     asyncio.run(_test())
 
-
 def test_wayback_fetcher_overall_deadline_applies_across_multiple_redirect_hops():
     """Verify that the strict overall deadline in safe_fetch_wayback_async applies
     cumulatively across multiple redirect hops on web.archive.org."""
@@ -1152,5 +1122,146 @@ def test_wayback_fetcher_overall_deadline_applies_across_multiple_redirect_hops(
                 )
             assert resp1.aclose.called, "Hop 1 response was not closed"
             assert resp2.aclose.called, "Hop 2 response was not closed"
+
+    asyncio.run(_test())
+
+# ============================================================================
+# 10. Per-Hop Read Timeout (25s) & Overall 30s Deadline Verification Tests
+# ============================================================================
+
+def test_wayback_fetcher_read_timeout_ceiling_is_25s_accommodating_slow_responses():
+    """Verify that safe_fetch_wayback_async sets the per-hop read timeout ceiling to 25s,
+    accommodating slow Wayback responses taking longer than 12 seconds when the overall
+    deadline allows it."""
+    async def _test():
+        captured_timeout = None
+        mock_resp = MagicMock(spec=httpx.Response)
+        mock_resp.status_code = 200
+        mock_resp.headers = {"content-type": "text/html"}
+        async def mock_aiter():
+            yield b"<html><body>slow capture content</body></html>"
+        mock_resp.aiter_bytes = mock_aiter
+        mock_resp.aclose = AsyncMock()
+
+        async def mock_send(request, *args, **kwargs):
+            nonlocal captured_timeout
+            captured_timeout = request.extensions.get("timeout", {})
+            return mock_resp
+
+        with patch.object(httpx.AsyncClient, "send", side_effect=mock_send):
+            result = await safe_fetch_wayback_async(
+                "https://web.archive.org/web/20200101000000id_/https://example.com",
+                total_deadline=30.0,
+            )
+            assert result.status_code == 200
+            assert b"slow capture content" in result.content
+            assert captured_timeout is not None
+            # Read timeout must be exactly 25.0s (increased from 12.0s ceiling)
+            assert captured_timeout.get("read") == 25.0
+            # Connect timeout remains capped at 5.0s
+            assert captured_timeout.get("connect") == 5.0
+
+    asyncio.run(_test())
+
+def test_wayback_fetcher_read_timeout_bounded_by_remaining_deadline():
+    """Verify that when remaining time is less than 25s, read timeout is bounded
+    by remaining_time to enforce the overall deadline."""
+    async def _test():
+        captured_timeout = None
+        mock_resp = MagicMock(spec=httpx.Response)
+        mock_resp.status_code = 200
+        mock_resp.headers = {"content-type": "text/html"}
+        async def mock_aiter():
+            yield b"<html><body>bounded capture</body></html>"
+        mock_resp.aiter_bytes = mock_aiter
+        mock_resp.aclose = AsyncMock()
+
+        async def mock_send(request, *args, **kwargs):
+            nonlocal captured_timeout
+            captured_timeout = request.extensions.get("timeout", {})
+            return mock_resp
+
+        with patch.object(httpx.AsyncClient, "send", side_effect=mock_send):
+            result = await safe_fetch_wayback_async(
+                "https://web.archive.org/web/20200101000000id_/https://example.com",
+                total_deadline=8.0,
+            )
+            assert result.status_code == 200
+            assert captured_timeout is not None
+            # Read timeout is bounded by remaining_time (~8.0s), strictly <= 8.0s
+            assert captured_timeout.get("read") <= 8.0
+            assert captured_timeout.get("connect") <= 5.0
+
+    asyncio.run(_test())
+
+def test_wayback_fetcher_read_timeout_exception_fails_safely():
+    """Verify that an actual httpx.ReadTimeout during capture streaming raises ResourceLimitError safely."""
+    async def _test():
+        with patch.object(
+            httpx.AsyncClient,
+            "send",
+            side_effect=httpx.ReadTimeout("The read operation timed out after 25s"),
+        ):
+            with pytest.raises(ResourceLimitError, match="Request timeout exceeded.*timed out"):
+                await safe_fetch_wayback_async(
+                    "https://web.archive.org/web/20200101000000id_/https://example.com",
+                    total_deadline=30.0,
+                )
+
+    asyncio.run(_test())
+
+def test_wayback_fetch_raw_pair_enforces_30s_deadline():
+    """Verify fetch_wayback_raw_pair accepts total_deadline=30.0 and propagates it to both captures."""
+    async def _test():
+        snap1 = WaybackSnapshot(
+            timestamp="20020120142510",
+            datetime="2002-01-20T14:25:10Z",
+            display_date="Jan 20, 2002",
+            original_url="http://example.com/1",
+            status_code=200,
+            mimetype="text/html",
+        )
+        snap2 = WaybackSnapshot(
+            timestamp="20220120142510",
+            datetime="2022-01-20T14:25:10Z",
+            display_date="Jan 20, 2022",
+            original_url="http://example.com/2",
+            status_code=200,
+            mimetype="text/html",
+        )
+
+        deadlines_passed = []
+        async def mock_fetcher(url: str, **kwargs):
+            deadlines_passed.append(kwargs.get("total_deadline"))
+            return make_mock_result(url=url, content=VALID_HTML_BYTES)
+
+        res1, res2 = await fetch_wayback_raw_pair(snap1, snap2, total_deadline=30.0, fetcher=mock_fetcher)
+        assert res1.content == VALID_HTML_BYTES
+        assert res2.content == VALID_HTML_BYTES
+        assert deadlines_passed == [30.0, 30.0]
+
+    asyncio.run(_test())
+
+def test_exact_snapshot_verification_integrity_retained():
+    """Verify exact snapshot timestamp verification remains fully intact."""
+    async def _test():
+        cdx_data = [
+            ["timestamp", "original", "mimetype", "statuscode", "length"],
+            ["20200101120000", "https://example.com/", "text/html", "200", "1000"],
+        ]
+        mock_res = make_mock_result(
+            url="https://web.archive.org/cdx/search/cdx",
+            status_code=200,
+            content=json.dumps(cdx_data).encode("utf-8"),
+        )
+        mock_fetcher = AsyncMock(return_value=mock_res)
+
+        # Exact matching timestamp resolves successfully
+        snap = await verify_snapshot_timestamp("https://example.com", "20200101120000", fetcher=mock_fetcher)
+        assert snap.timestamp == "20200101120000"
+
+        # Mismatched timestamp raises SnapshotNotFoundError
+        with pytest.raises(SnapshotNotFoundError, match="Exact timestamp '20200101120001' not found"):
+            await verify_snapshot_timestamp("https://example.com", "20200101120001", fetcher=mock_fetcher)
 
     asyncio.run(_test())

@@ -21,9 +21,13 @@ class TopicGroup(BaseModel):
         if not isinstance(v, list):
             return []
         coerced: list[int] = []
+        seen: set[int] = set()
         for item in v:
             try:
-                coerced.append(int(item))
+                cid = int(item)
+                if cid not in seen:
+                    coerced.append(cid)
+                    seen.add(cid)
             except (ValueError, TypeError):
                 continue
         return coerced
@@ -50,7 +54,37 @@ class AISummary(BaseModel):
     def clean_takeaways(cls, v: Any) -> list[str]:
         if not isinstance(v, list):
             return []
-        return [str(item).strip() for item in v if str(item).strip()]
+
+        SCHEMA_METADATA_NAMES = {
+            "topic_groups",
+            "change_ids",
+            "executive_summary",
+            "significance",
+            "key_takeaways",
+            "topic",
+            "category",
+            "description",
+            "changes",
+            "summary",
+        }
+
+        cleaned: list[str] = []
+        for item in v:
+            s = str(item).strip()
+            # Strip markdown bullets or numbers if model prefixed them
+            while s.startswith(("- ", "* ", "• ", "1. ", "2. ", "3. ")):
+                s = s.split(" ", 1)[1].strip()
+            # Reject raw schema artifacts or tokens
+            clean_lower = s.lower().strip("`'\" :;{}[]")
+            if clean_lower in SCHEMA_METADATA_NAMES or clean_lower.startswith("topic_groups"):
+                continue
+            if len(clean_lower) < 5 or clean_lower.startswith(("{", "}", "[", "]")):
+                continue
+            if s and s not in cleaned:
+                cleaned.append(s)
+            if len(cleaned) == 3:
+                break
+        return cleaned
 
 
 class AIConfig(BaseModel):
@@ -59,6 +93,9 @@ class AIConfig(BaseModel):
     base_url: str = "http://127.0.0.1:11434"
     model: str = "qwen2.5:1.5b"
     timeout_seconds: float = 90.0
+    num_predict: int = 500
+    max_queue_wait: float = 45.0
+    max_waiters: int = 1
     enabled: bool = True
 
     @classmethod
@@ -75,9 +112,33 @@ class AIConfig(BaseModel):
         except ValueError:
             timeout_seconds = 90.0
 
+        try:
+            num_predict = int(os.environ.get("OLLAMA_NUM_PREDICT", "500"))
+            if num_predict <= 0:
+                num_predict = 500
+        except ValueError:
+            num_predict = 500
+
+        try:
+            max_queue_wait = float(os.environ.get("OLLAMA_MAX_QUEUE_WAIT", "45.0"))
+            if max_queue_wait < 0:
+                max_queue_wait = 45.0
+        except ValueError:
+            max_queue_wait = 45.0
+
+        try:
+            max_waiters = int(os.environ.get("OLLAMA_MAX_WAITERS", "1"))
+            if max_waiters < 0:
+                max_waiters = 1
+        except ValueError:
+            max_waiters = 1
+
         return cls(
             base_url=base_url,
             model=model,
             timeout_seconds=timeout_seconds,
+            num_predict=num_predict,
+            max_queue_wait=max_queue_wait,
+            max_waiters=max_waiters,
             enabled=enabled,
         )

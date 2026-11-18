@@ -74,7 +74,20 @@ export default function NlpSummaryPanel({ nlpAnalysis, sectionNumber = '02' }) {
 
   // 1. Guard against missing or malformed NLP analysis
   if (!nlpAnalysis || typeof nlpAnalysis !== 'object') {
-    return null;
+    return (
+      <section className="nlp-section" aria-labelledby="nlp-summary-heading">
+        <div className="section-heading">
+          <div>
+            <span className="section-number">{sectionNumber}</span>
+            <h2 id="nlp-summary-heading">Semantic Analysis of Modified Text</h2>
+          </div>
+        </div>
+        <div className="nlp-notice nlp-notice-warning" role="note">
+          <strong>Semantic analysis note:</strong>{' '}
+          NLP semantic analysis is not available for this comparison. All detected structural changes remain accessible in Change Explorer.
+        </div>
+      </section>
+    );
   }
 
   // 2. Handle NLP processing error response gracefully

@@ -205,7 +205,7 @@ async def safe_fetch_async(
                     hop_timeout = httpx.Timeout(
                         timeout=remaining_time,
                         connect=min(5.0, remaining_time),
-                        read=min(12.0, remaining_time),
+                        read=min(25.0, remaining_time),
                     )
 
                     # Build streaming request
